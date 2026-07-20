@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// Tenant (Client Subscribers)
+// -----------------------------------------------------------------------------
+model Tenant {
+  id             String          @id @default(uuid())
+  name           String
+  domain         String?         // Allowed domains for the widget
+  isActive       Boolean         @default(true)
+  subscriptionId String?         // Stripe or other payment ID
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  users          User[]
+  conversations  Conversation[]
+  aiPersonas     AIPersona[]
+  knowledgeBase  KnowledgeBase[]
+}
+
+// -----------------------------------------------------------------------------
+// User (Client Admins / Super Admin)
+// -----------------------------------------------------------------------------
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // Hashed
+  name      String
+  role      Role     @default(ADMIN) // SUPER_ADMIN or ADMIN (tenant admin)
+  
+  tenantId  String?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  SUPER_ADMIN // Owner of the SaaS
+  ADMIN       // Client's admin
+}
+
+// -----------------------------------------------------------------------------
+// AI Persona & Knowledge Base
+// -----------------------------------------------------------------------------
+model AIPersona {
+  id              String   @id @default(uuid())
+  name            String   @default("AI Assistant")
+  systemPrompt    String   @default("You are a helpful customer support agent.")
+  provider        AIProvider @default(OPENAI) // OPENAI or GEMINI
+  isActive        Boolean  @default(true)
+  
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum AIProvider {
+  OPENAI
+  GEMINI
+}
+
+model KnowledgeBase {
+  id        String   @id @default(uuid())
+  title     String
+  content   String   @db.Text // Can be raw text from PDF/web
+  vectorId  String?  // Reference to Pinecone/Weaviate vector ID
+  
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// Conversations & Messages
+// -----------------------------------------------------------------------------
+model Conversation {
+  id           String   @id @default(uuid())
+  customerId   String   // Can be a generated UUID in localStorage of customer browser
+  customerName String?  
+  customerEmail String?
+  status       ChatStatus @default(OPEN)
+  
+  // Handover state: true means AI handles it, false means Human takes over
+  isAIActive   Boolean  @default(true) 
+  
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  
+  messages     Message[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum ChatStatus {
+  OPEN
+  RESOLVED
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  content        String   @db.Text
+  sender         SenderType
+  
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  
+  createdAt      DateTime @default(now())
+}
+
+enum SenderType {
+  CUSTOMER
+  AI
+  HUMAN_ADMIN
+}
