@@ -28,6 +28,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <Link href="/dashboard/team" className="block px-4 py-2 rounded-lg hover:bg-neutral-800 transition-colors text-neutral-400 hover:text-white">
             Team Settings
           </Link>
+          <Link href="/dashboard/billing" className="block px-4 py-2 rounded-lg hover:bg-neutral-800 transition-colors text-emerald-400 hover:text-emerald-300">
+            Billing & Plan
+          </Link>
         </nav>
 
         <div className="p-4 border-t border-neutral-800">

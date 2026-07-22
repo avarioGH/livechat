@@ -6,6 +6,7 @@ import { Server } from 'socket.io';
 import { PrismaClient } from '@prisma/client';
 import { initSocket } from './services/socketService';
 import authRoutes from './routes/auth';
+import billingRoutes from './routes/billing';
 
 dotenv.config();
 
@@ -27,6 +28,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/billing', billingRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Live Chat API is running' });
