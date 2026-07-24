@@ -1,15 +1,24 @@
 import { OpenAI } from 'openai';
-import { GoogleGenAI } from '@google/genai';
 import { prisma } from '../index';
+let GoogleGenAI: any;
+import('@google/genai').then(mod => {
+  GoogleGenAI = mod.GoogleGenAI;
+});
 
 // Initialize SDKs (Make sure to set these in .env later)
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'dummy_key',
 });
 
-const gemini = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || 'dummy_key',
-});
+let gemini: any;
+const initGemini = () => {
+  if (!gemini && GoogleGenAI) {
+    gemini = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY || 'dummy_key',
+    });
+  }
+  return gemini;
+};
 
 /**
  * Generate a reply using the configured AI provider for a specific Tenant.
@@ -35,7 +44,7 @@ export const generateAIReply = async (
       take: 5 // Get some general context for now
     });
 
-    let contextString = knowledgeBase.map(kb => kb.content).join('\n\n');
+    let contextString = knowledgeBase.map((kb: any) => kb.content).join('\n\n');
     
     // Inject persona instruction and context as a system prompt
     const systemMessage = {
@@ -89,10 +98,13 @@ const callGemini = async (messages: any[]): Promise<string> => {
   // Convert messages format for Gemini
   // Gemini GenAI SDK uses slightly different formatting. We'll simplify for the basic text generation.
   // The system instruction can be passed in config.
-  const systemInstruction = messages.find(m => m.role === 'system')?.content || '';
-  const userMessages = messages.filter(m => m.role !== 'system').map(m => m.content).join('\n');
+  const systemInstruction = messages.find((m: any) => m.role === 'system')?.content || '';
+  const userMessages = messages.filter((m: any) => m.role !== 'system').map((m: any) => m.content).join('\n');
   
-  const response = await gemini.models.generateContent({
+  const geminiInstance = initGemini();
+  if (!geminiInstance) return 'Gemini SDK is initializing, please try again.';
+
+  const response = await geminiInstance.models.generateContent({
     model: 'gemini-2.5-flash',
     contents: userMessages,
     config: {
