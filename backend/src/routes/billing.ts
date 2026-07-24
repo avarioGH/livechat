@@ -4,7 +4,7 @@ import { prisma } from '../index';
 
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'dummy_key_for_now', {
-  apiVersion: '2025-01-27.acacia',
+  apiVersion: '2025-01-27.acacia' as any,
 });
 
 // Create Stripe Checkout Session

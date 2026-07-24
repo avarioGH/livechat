@@ -77,7 +77,7 @@ const callOpenAI = async (messages: any[]): Promise<string> => {
     model: 'gpt-4o-mini',
   });
 
-  return completion.choices[0].message.content || 'No response from OpenAI.';
+  return completion.choices[0]?.message?.content || 'No response from OpenAI.';
 };
 
 // Helper: Call Google Gemini
