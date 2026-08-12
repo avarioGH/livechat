@@ -1,9 +1,11 @@
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
+  extensions = [vector]
 }
 
 // -----------------------------------------------------------------------------
@@ -423,7 +425,8 @@ model KnowledgeChunk {
   knowledgeDocument KnowledgeDocument @relation(fields: [knowledgeDocumentId], references: [id])
   
   content           String            @db.Text
-  vectorId          String?           // Reference to external VectorDB or pgvector
+  vectorId          String?           // Reference to external VectorDB if needed
+  embedding         Unsupported("vector(1536)")?
   
   createdAt         DateTime          @default(now())
 }

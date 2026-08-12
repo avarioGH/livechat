@@ -5,7 +5,7 @@ import('@google/genai').then(mod => {
   GoogleGenAI = mod.GoogleGenAI;
 });
 
-// Initialize SDKs (Make sure to set these in .env later)
+// Initialize SDKs
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'dummy_key',
 });
@@ -21,37 +21,83 @@ const initGemini = () => {
 };
 
 /**
- * Generate a reply using the configured AI provider for a specific Tenant.
+ * Generate a reply using the configured AI provider for a specific Organization.
  */
 export const generateAIReply = async (
-  tenantId: string,
+  organizationId: string,
   conversationHistory: { role: 'user' | 'assistant' | 'system', content: string }[]
 ): Promise<string> => {
   try {
-    // 1. Fetch Tenant's AI Persona configuration
-    const persona = await prisma.aIPersona.findFirst({
-      where: { tenantId, isActive: true },
+    // 1. Fetch AI Employee configuration
+    const aiEmployee = await prisma.aIEmployee.findFirst({
+      where: { organizationId, isActive: true },
+      include: {
+        knowledgeSources: {
+          select: { knowledgeBaseId: true }
+        }
+      }
     });
 
-    if (!persona) {
+    if (!aiEmployee) {
       return "Mohon maaf, layanan pelanggan saat ini sedang offline.";
     }
 
-    // 2. Fetch Knowledge Base for RAG (Basic Implementation)
-    // In a production app, we would query Pinecone/Weaviate here using vector embeddings of the user's message.
-    const knowledgeBase = await prisma.knowledgeBase.findMany({
-      where: { tenantId },
-      take: 5 // Get some general context for now
-    });
+    // 2. Fetch Knowledge Base for RAG using pgvector similarity search
+    let contextString = "";
+    if (aiEmployee.knowledgeSources && aiEmployee.knowledgeSources.length > 0) {
+       const userLatestQuery = conversationHistory.filter(m => m.role === 'user').pop()?.content || "";
+       
+       let queryEmbedding: number[] | null = null;
+       if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'dummy_key') {
+          try {
+             const embedResp = await openai.embeddings.create({
+                model: 'text-embedding-3-small',
+                input: userLatestQuery,
+                encoding_format: 'float'
+             });
+             queryEmbedding = embedResp.data[0].embedding;
+          } catch (e) {
+             console.error('Failed to embed user query:', e);
+          }
+       }
 
-    let contextString = knowledgeBase.map((kb: any) => kb.content).join('\n\n');
+       if (queryEmbedding) {
+          const vectorStr = `[${queryEmbedding.join(',')}]`;
+          const kbIds = aiEmployee.knowledgeSources.map(ks => ks.knowledgeBaseId);
+          // 1 - (embedding <=> query) AS similarity (cosine similarity)
+          const topChunks = await prisma.$queryRaw<any[]>`
+             SELECT c.content, (1 - (c.embedding <=> ${vectorStr}::vector)) AS similarity
+             FROM "KnowledgeChunk" c
+             JOIN "KnowledgeDocument" d ON c."knowledgeDocumentId" = d.id
+             JOIN "KnowledgeSource" s ON d."knowledgeSourceId" = s.id
+             WHERE s."knowledgeBaseId" IN (${kbIds.join("','")})
+               AND c.embedding IS NOT NULL
+             ORDER BY c.embedding <=> ${vectorStr}::vector
+             LIMIT 5;
+          `;
+          contextString = topChunks.map(c => c.content).join("\n\n");
+       } else {
+          // Fallback: Just get random/latest chunks if no embedding available
+          const topChunks = await prisma.knowledgeChunk.findMany({
+             where: {
+                knowledgeDocument: {
+                   knowledgeSource: {
+                      knowledgeBaseId: { in: aiEmployee.knowledgeSources.map(k => k.knowledgeBaseId) }
+                   }
+                }
+             },
+             take: 5
+          });
+          contextString = topChunks.map(c => c.content).join("\n\n");
+       }
+    }
     
     // Inject persona instruction and context as a system prompt
     const systemMessage = {
       role: 'system' as const,
       content: `
-        You are ${persona.name}. 
-        ${persona.systemPrompt}
+        You are ${aiEmployee.name}. 
+        ${aiEmployee.systemInstruction || 'You are a helpful customer support agent.'}
         
         KNOWLEDGE BASE CONTEXT (Use this information to answer user queries):
         ${contextString}
@@ -64,10 +110,10 @@ export const generateAIReply = async (
     const messages = [systemMessage, ...conversationHistory];
 
     // 3. Route to the chosen AI Provider
-    if (persona.provider === 'OPENAI') {
-      return await callOpenAI(messages);
+    if (aiEmployee.provider === 'OPENAI') {
+      return await callOpenAI(messages, aiEmployee.model);
     } else {
-      return await callGemini(messages);
+      return await callGemini(messages, aiEmployee.model);
     }
   } catch (error) {
     console.error('Error generating AI reply:', error);
@@ -76,28 +122,25 @@ export const generateAIReply = async (
 };
 
 // Helper: Call OpenAI GPT
-const callOpenAI = async (messages: any[]): Promise<string> => {
+const callOpenAI = async (messages: any[], model: string): Promise<string> => {
   if (process.env.OPENAI_API_KEY === 'dummy_key' || !process.env.OPENAI_API_KEY) {
     return "[OpenAI System]: This is a dummy response. Please configure OPENAI_API_KEY in the .env file.";
   }
 
   const completion = await openai.chat.completions.create({
     messages,
-    model: 'gpt-4o-mini',
+    model: model || 'gpt-4o-mini',
   });
 
   return completion.choices[0]?.message?.content || 'No response from OpenAI.';
 };
 
 // Helper: Call Google Gemini
-const callGemini = async (messages: any[]): Promise<string> => {
+const callGemini = async (messages: any[], model: string): Promise<string> => {
   if (process.env.GEMINI_API_KEY === 'dummy_key' || !process.env.GEMINI_API_KEY) {
     return "[Gemini System]: This is a dummy response. Please configure GEMINI_API_KEY in the .env file.";
   }
 
-  // Convert messages format for Gemini
-  // Gemini GenAI SDK uses slightly different formatting. We'll simplify for the basic text generation.
-  // The system instruction can be passed in config.
   const systemInstruction = messages.find((m: any) => m.role === 'system')?.content || '';
   const userMessages = messages.filter((m: any) => m.role !== 'system').map((m: any) => m.content).join('\n');
   
@@ -105,7 +148,7 @@ const callGemini = async (messages: any[]): Promise<string> => {
   if (!geminiInstance) return 'Gemini SDK is initializing, please try again.';
 
   const response = await geminiInstance.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: model || 'gemini-2.5-flash',
     contents: userMessages,
     config: {
       systemInstruction: systemInstruction

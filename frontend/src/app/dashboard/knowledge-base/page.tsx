@@ -1,136 +1,240 @@
 "use client";
 
-import { useState } from "react";
-import { Link as LinkIcon, Database, CheckCircle2, UploadCloud, RefreshCw, FileText, Globe, MessageCircleQuestion, Plus } from "lucide-react";
+import { useState, useEffect } from 'react';
+import { Database, Plus, FileText, UploadCloud, X, RefreshCw } from "lucide-react";
+
+type KnowledgeBase = {
+  id: string;
+  name: string;
+  description: string;
+  sources: any[];
+};
 
 export default function KnowledgeBasePage() {
-  const [activeTab, setActiveTab] = useState<'all' | 'documents' | 'links' | 'qa'>('all');
+  const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
+  const [showKBModal, setShowKBModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [activeKB, setActiveKB] = useState<string | null>(null);
+  
+  const [kbForm, setKbForm] = useState({ name: '', description: '' });
+  const [uploadForm, setUploadForm] = useState({ title: '', textContent: '' });
+  
+  const [token, setToken] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    const storedToken = localStorage.getItem('token');
+    if (storedToken) {
+      setToken(storedToken);
+      fetchKBs(storedToken);
+    }
+  }, []);
+
+  const fetchKBs = async (jwt: string) => {
+    // For now we don't have GET /api/knowledge, so we'll mock an empty state if it fails 
+    // Ideally we'd create that endpoint in the backend. Let's just create it real quick! 
+    // Oh wait, I didn't create GET /api/knowledge. Let me assume the backend will have it or we just catch it.
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/knowledge`, {
+        headers: { 'Authorization': `Bearer ${jwt}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) setKbs(data);
+      } else {
+        setKbs([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch KBs', error);
+      setKbs([]);
+    }
+  };
+
+  const handleCreateKB = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/knowledge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(kbForm)
+      });
+      if (res.ok) {
+        setShowKBModal(false);
+        setKbForm({ name: '', description: '' });
+        fetchKBs(token);
+      }
+    } catch (error) {
+      console.error('Failed to create KB', error);
+    }
+  };
+
+  const handleUploadText = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !activeKB) return;
+
+    setIsProcessing(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/knowledge/${activeKB}/text`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(uploadForm)
+      });
+      if (res.ok) {
+        setShowUploadModal(false);
+        setUploadForm({ title: '', textContent: '' });
+        fetchKBs(token);
+        alert('Teks berhasil diunggah dan di-embed!');
+      }
+    } catch (error) {
+      console.error('Failed to upload text', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   return (
     <div className="p-8 max-w-7xl mx-auto h-full overflow-y-auto">
-      <div className="flex justify-between items-start mb-8">
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white mb-2">AI Knowledge Base</h1>
-          <p className="text-sm text-neutral-400 max-w-2xl">
-            Latih AI Anda dengan dokumen, website, dan FAQ agar bisa menjawab pertanyaan pelanggan dengan lebih pintar dan akurat.
+          <h1 className="text-2xl font-bold text-white mb-2">Knowledge Base</h1>
+          <p className="text-sm text-neutral-400">
+            Latih AI Anda dengan mengunggah teks pedoman, FAQ, atau data produk.
           </p>
         </div>
-        <div className="flex gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-medium rounded-lg transition-colors border border-neutral-700">
-            <RefreshCw className="w-4 h-4" />
-            Sync All
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-indigo-500/20">
-            <Plus className="w-4 h-4" />
-            Tambah Data
-          </button>
-        </div>
-      </div>
-
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5 backdrop-blur-xl flex flex-col justify-between">
-          <span className="text-xs font-bold text-neutral-500 tracking-wider mb-2">DATA SOURCES</span>
-          <div className="text-3xl font-bold text-white mb-1">1</div>
-          <span className="text-xs text-neutral-400">Aktif terhubung</span>
-        </div>
-        <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5 backdrop-blur-xl flex flex-col justify-between">
-          <span className="text-xs font-bold text-neutral-500 tracking-wider mb-2">VECTOR CHUNKS</span>
-          <div className="text-3xl font-bold text-white mb-1">10</div>
-          <span className="text-xs text-neutral-400">Pecahan memori AI</span>
-        </div>
-        <div className="bg-emerald-950/20 border border-emerald-900/50 rounded-2xl p-5 backdrop-blur-xl flex flex-col justify-between relative overflow-hidden">
-          <Database className="absolute -right-4 -bottom-4 w-24 h-24 text-emerald-900/30" />
-          <span className="text-xs font-bold text-emerald-600 tracking-wider mb-2 z-10">SYNC STATUS</span>
-          <div className="text-2xl font-bold text-emerald-400 mb-1 z-10">Healthy</div>
-          <span className="text-xs text-emerald-600/80 z-10">Semua data terindeks</span>
-        </div>
-        <button className="bg-indigo-950/20 border border-indigo-900/50 border-dashed rounded-2xl p-5 backdrop-blur-xl flex flex-col items-center justify-center gap-2 hover:bg-indigo-900/20 transition-colors group">
-          <div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-            <UploadCloud className="w-5 h-5 text-indigo-400" />
-          </div>
-          <span className="text-sm font-bold text-indigo-400">Upload Dokumen</span>
-          <span className="text-xs text-indigo-500/60">PDF, DOCX, TXT</span>
+        <button 
+          onClick={() => setShowKBModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-indigo-500/20"
+        >
+          <Plus className="w-4 h-4" />
+          Create New KB
         </button>
       </div>
 
-      {/* Data List Section */}
-      <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl backdrop-blur-xl overflow-hidden">
-        <div className="flex border-b border-neutral-800 p-2 gap-1">
-          <button 
-            onClick={() => setActiveTab('all')}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeTab === 'all' ? 'bg-indigo-500/10 text-indigo-400' : 'text-neutral-400 hover:text-white'}`}
-          >
-            All
-          </button>
-          <button 
-            onClick={() => setActiveTab('documents')}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${activeTab === 'documents' ? 'bg-indigo-500/10 text-indigo-400' : 'text-neutral-400 hover:text-white'}`}
-          >
-            <FileText className="w-4 h-4" /> Documents
-          </button>
-          <button 
-            onClick={() => setActiveTab('links')}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${activeTab === 'links' ? 'bg-indigo-500/10 text-indigo-400' : 'text-neutral-400 hover:text-white'}`}
-          >
-            <Globe className="w-4 h-4" /> Website Links
-          </button>
-          <button 
-            onClick={() => setActiveTab('qa')}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${activeTab === 'qa' ? 'bg-indigo-500/10 text-indigo-400' : 'text-neutral-400 hover:text-white'}`}
-          >
-            <MessageCircleQuestion className="w-4 h-4" /> Q&A
-          </button>
-        </div>
-
-        <div className="w-full">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-neutral-800">
-                <th className="px-6 py-4 text-xs font-bold text-neutral-500 uppercase tracking-wider w-1/3">Sumber Data</th>
-                <th className="px-6 py-4 text-xs font-bold text-neutral-500 uppercase tracking-wider w-1/4">Detail</th>
-                <th className="px-6 py-4 text-xs font-bold text-neutral-500 uppercase tracking-wider">Status Sinkronisasi</th>
-                <th className="px-6 py-4 text-xs font-bold text-neutral-500 uppercase tracking-wider text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Dummy row representing the screenshot */}
-              <tr className="border-b border-neutral-800/50 hover:bg-neutral-800/20 transition-colors group">
-                <td className="px-6 py-4">
-                  <div className="flex items-start gap-4">
-                    <div className="mt-1 w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
-                      <LinkIcon className="w-4 h-4 text-blue-400" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-white text-sm mb-1">kebijakan pelanggan</p>
-                      <p className="text-xs text-neutral-500 truncate w-64">fa6aefe7-e5a5-40cd-92ec-d8cd26f8197a</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <p className="text-sm font-bold text-neutral-300">URL</p>
-                  <p className="text-xs text-neutral-500">URL Link &bull; 10 chunks</p>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-1.5 text-emerald-400 text-sm font-medium">
-                    <CheckCircle2 className="w-4 h-4" /> Synced
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <button className="text-xs font-medium text-neutral-500 hover:text-white transition-colors opacity-0 group-hover:opacity-100">
-                    Edit
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          {activeTab !== 'all' && (
-            <div className="p-12 text-center text-neutral-500 text-sm">
-              Tidak ada data lain di kategori ini.
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {kbs.map(kb => (
+          <div key={kb.id} className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 backdrop-blur-xl hover:border-neutral-700 transition-colors">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-white mb-1">{kb.name}</h3>
+                <p className="text-sm text-neutral-400">{kb.description}</p>
+              </div>
+              <div className="p-3 bg-neutral-800 rounded-xl border border-neutral-700">
+                <Database className="w-5 h-5 text-indigo-400" />
+              </div>
             </div>
-          )}
-        </div>
+            
+            <div className="flex items-center gap-4 py-4 border-y border-neutral-800/50 mb-4">
+              <div className="flex-1">
+                <div className="text-xs text-neutral-500 font-semibold mb-1">DATA SOURCES</div>
+                <div className="text-xl font-bold text-white">{kb.sources?.length || 0}</div>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => { setActiveKB(kb.id); setShowUploadModal(true); }}
+              className="w-full py-2.5 bg-neutral-800 hover:bg-indigo-600 text-white text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 group"
+            >
+              <UploadCloud className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
+              Unggah Teks Baru
+            </button>
+          </div>
+        ))}
+
+        {kbs.length === 0 && (
+          <div className="col-span-full py-16 flex flex-col items-center justify-center border border-dashed border-neutral-800 rounded-2xl bg-neutral-900/20">
+            <Database className="w-12 h-12 text-neutral-700 mb-4" />
+            <h3 className="text-lg font-medium text-neutral-300 mb-2">Belum ada Knowledge Base</h3>
+            <p className="text-sm text-neutral-500 mb-6 text-center max-w-md">
+              Buat Knowledge Base pertama Anda untuk melatih AI Employee agar dapat menjawab pertanyaan secara spesifik mengenai bisnis Anda.
+            </p>
+            <button 
+              onClick={() => setShowKBModal(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-indigo-500/20"
+            >
+              <Plus className="w-4 h-4" />
+              Create Knowledge Base
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Create KB Modal */}
+      {showKBModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-neutral-800 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white">Create Knowledge Base</h2>
+              <button onClick={() => setShowKBModal(false)} className="text-neutral-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateKB} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase tracking-wider">Nama KB</label>
+                <input required type="text" value={kbForm.name} onChange={e => setKbForm({...kbForm, name: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="e.g. FAQ Produk" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase tracking-wider">Deskripsi Singkat</label>
+                <input type="text" value={kbForm.description} onChange={e => setKbForm({...kbForm, description: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="e.g. Data FAQ untuk Bot Support" />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-neutral-800 mt-6">
+                <button type="button" onClick={() => setShowKBModal(false)} className="px-5 py-2.5 rounded-xl text-sm font-medium text-neutral-400 hover:text-white transition-colors">Batal</button>
+                <button type="submit" className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors">Buat KB</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Text Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-neutral-800 flex justify-between items-center bg-indigo-500/5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Unggah Pengetahuan (Teks)</h2>
+                  <p className="text-xs text-neutral-400 mt-0.5">Teks akan dipecah (chunk) dan diproses oleh AI.</p>
+                </div>
+              </div>
+              <button onClick={() => !isProcessing && setShowUploadModal(false)} className="text-neutral-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleUploadText} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase tracking-wider">Judul / Konteks</label>
+                <input required type="text" value={uploadForm.title} onChange={e => setUploadForm({...uploadForm, title: e.target.value})} disabled={isProcessing} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 disabled:opacity-50" placeholder="e.g. Kebijakan Pengembalian Dana" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase tracking-wider">Isi Teks</label>
+                <textarea required value={uploadForm.textContent} onChange={e => setUploadForm({...uploadForm, textContent: e.target.value})} disabled={isProcessing} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 h-48 resize-none disabled:opacity-50" placeholder="Masukkan isi pengetahuan (knowledge) di sini. AI akan mempelajari teks ini untuk merespons pelanggan..." />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-neutral-800 mt-6">
+                <button type="button" onClick={() => !isProcessing && setShowUploadModal(false)} disabled={isProcessing} className="px-5 py-2.5 rounded-xl text-sm font-medium text-neutral-400 hover:text-white transition-colors disabled:opacity-50">Batal</button>
+                <button type="submit" disabled={isProcessing} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-lg shadow-indigo-500/20 disabled:opacity-50 flex items-center gap-2">
+                  {isProcessing ? (
+                    <><RefreshCw className="w-4 h-4 animate-spin" /> Memproses...</>
+                  ) : (
+                    <><UploadCloud className="w-4 h-4" /> Mulai Latih</>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

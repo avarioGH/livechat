@@ -10,25 +10,41 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'dummy_key_for_now', 
 // Create Stripe Checkout Session
 router.post('/create-checkout', async (req, res) => {
   try {
-    const { tenantId, plan } = req.body;
+    const { organizationId, plan } = req.body;
 
-    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
-    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      include: { subscription: true }
+    });
+    
+    if (!organization) return res.status(404).json({ error: 'Organization not found' });
 
     // Dummy Price IDs
     const priceId = plan === 'ENTERPRISE' ? 'price_enterprise_123' : 'price_pro_123';
 
     // 1. Create or retrieve Stripe Customer
-    let customerId = tenant.stripeCustomerId;
+    let customerId = organization.subscription?.stripeCustomerId;
     if (!customerId) {
       const customer = await stripe.customers.create({
-        name: tenant.name,
-        metadata: { tenantId: tenant.id }
+        name: organization.name,
+        metadata: { organizationId: organization.id }
       });
       customerId = customer.id;
-      await prisma.tenant.update({
-        where: { id: tenantId },
-        data: { stripeCustomerId: customerId }
+      
+      // Upsert Subscription record
+      await prisma.subscription.upsert({
+        where: { organizationId: organization.id },
+        create: {
+          organizationId: organization.id,
+          stripeCustomerId: customerId,
+          planId: 'FREE',
+          status: 'TRIAL',
+          currentPeriodStart: new Date(),
+          currentPeriodEnd: new Date(new Date().setDate(new Date().getDate() + 14))
+        },
+        update: {
+          stripeCustomerId: customerId
+        }
       });
     }
 
@@ -40,7 +56,7 @@ router.post('/create-checkout', async (req, res) => {
       mode: 'subscription',
       success_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/billing?success=true`,
       cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/billing?canceled=true`,
-      metadata: { tenantId }
+      metadata: { organizationId }
     });
 
     res.json({ url: session.url });
@@ -65,25 +81,39 @@ router.post('/webhook', async (req, res) => {
       const status = subscription.status === 'active' ? 'ACTIVE' : 
                      subscription.status === 'past_due' ? 'PAST_DUE' : 'CANCELED';
 
-      await prisma.tenant.updateMany({
-        where: { stripeCustomerId: customerId },
-        data: {
-          stripeSubscriptionId: subscription.id,
-          subscriptionStatus: status,
-          plan: 'PRO' // Can dynamically map based on subscription.items
-        }
+      const existingSub = await prisma.subscription.findFirst({
+        where: { stripeCustomerId: customerId }
       });
+
+      if (existingSub) {
+        await prisma.subscription.update({
+          where: { id: existingSub.id },
+          data: {
+            stripeSubId: subscription.id,
+            status: status,
+            planId: 'PRO', // Can dynamically map based on subscription.items
+            currentPeriodStart: new Date(subscription.current_period_start * 1000),
+            currentPeriodEnd: new Date(subscription.current_period_end * 1000)
+          }
+        });
+      }
     } else if (event.type === 'customer.subscription.deleted') {
       const subscription = event.data.object as Stripe.Subscription;
       const customerId = subscription.customer as string;
 
-      await prisma.tenant.updateMany({
-        where: { stripeCustomerId: customerId },
-        data: {
-          subscriptionStatus: 'CANCELED',
-          plan: 'FREE'
-        }
+      const existingSub = await prisma.subscription.findFirst({
+        where: { stripeCustomerId: customerId }
       });
+
+      if (existingSub) {
+        await prisma.subscription.update({
+          where: { id: existingSub.id },
+          data: {
+            status: 'CANCELED',
+            planId: 'FREE'
+          }
+        });
+      }
     }
 
     res.json({ received: true });

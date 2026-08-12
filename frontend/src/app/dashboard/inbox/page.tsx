@@ -6,60 +6,71 @@ import { io, Socket } from 'socket.io-client';
 type Message = {
   id: string;
   content: string;
-  sender: 'CUSTOMER' | 'AI' | 'HUMAN_ADMIN';
+  senderId: string;
+  senderType: 'CUSTOMER' | 'AI_EMPLOYEE' | 'HUMAN_AGENT' | 'SYSTEM';
   createdAt: string;
 };
 
 type Conversation = {
   id: string;
-  customerName: string;
-  isAIActive: boolean;
+  status: string;
+  assignedAIId: string | null;
+  assignedAgentId: string | null;
+  customer: { name: string, email: string };
   messages: Message[];
 };
 
 export default function InboxPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'human' | 'ai'>('all');
-  
-  // Dummy data for visual design purposes before fully hooking up API
-  const [conversations, setConversations] = useState<Conversation[]>([
-    {
-      id: 'c1',
-      customerName: 'John Doe',
-      isAIActive: true,
-      messages: [
-        { id: 'm1', content: 'Hello, I have an issue with billing.', sender: 'CUSTOMER', createdAt: new Date().toISOString() },
-        { id: 'm2', content: 'Hi John! I can help you with that. Could you provide your invoice number?', sender: 'AI', createdAt: new Date().toISOString() }
-      ]
-    },
-    {
-      id: 'c2',
-      customerName: 'Sarah Smith',
-      isAIActive: false,
-      messages: [
-        { id: 'm3', content: 'I need to speak to a human.', sender: 'CUSTOMER', createdAt: new Date().toISOString() }
-      ]
-    }
-  ]);
-
-  const [activeConvId, setActiveConvId] = useState<string>('c1');
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
-
-  const activeConversation = conversations.find(c => c.id === activeConvId);
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
+    // Basic auth extraction from localStorage
+    const storedToken = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+    
+    if (storedToken && storedUser) {
+      setToken(storedToken);
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!token || !user) return;
+
+    // Fetch initial conversations
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/conversations`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+         if (Array.isArray(data)) {
+           setConversations(data);
+           if (data.length > 0 && !activeConvId) {
+             setActiveConvId(data[0].id);
+           }
+         }
+      })
+      .catch(err => console.error('Failed to fetch conversations', err));
+
     // Connect to Socket.io backend
     const newSocket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000');
     setSocket(newSocket);
 
-    // Join tenant room (assume tenantId is stored locally)
-    const tenantId = 'test-tenant-id'; 
-    newSocket.emit('join_tenant', tenantId);
+    // Join organization room
+    newSocket.emit('join_organization', user.organizationId);
 
     newSocket.on('new_message', (msg: Message & { conversationId: string }) => {
       setConversations(prev => prev.map(conv => {
         if (conv.id === msg.conversationId) {
-          return { ...conv, messages: [...conv.messages, msg] };
+           // Prevent duplicates if optimistic UI already added it
+           if (conv.messages.find(m => m.id === msg.id)) return conv;
+           return { ...conv, messages: [...conv.messages, msg] };
         }
         return conv;
       }));
@@ -68,24 +79,28 @@ export default function InboxPage() {
     return () => {
       newSocket.close();
     };
-  }, []);
+  }, [token, user]);
+
+  const activeConversation = conversations.find(c => c.id === activeConvId);
 
   const handleSend = () => {
-    if (!replyText.trim() || !socket || !activeConversation) return;
+    if (!replyText.trim() || !socket || !activeConversation || !user) return;
 
     // Send to backend
     socket.emit('send_message', {
       conversationId: activeConversation.id,
       content: replyText,
-      sender: 'HUMAN_ADMIN',
-      tenantId: 'test-tenant-id' // dummy
+      senderId: user.id,
+      senderType: 'HUMAN_AGENT',
+      organizationId: user.organizationId
     });
 
     // Optimistic UI update
     const newMessage: Message = {
-      id: Date.now().toString(),
+      id: `temp-${Date.now()}`,
       content: replyText,
-      sender: 'HUMAN_ADMIN',
+      senderId: user.id,
+      senderType: 'HUMAN_AGENT',
       createdAt: new Date().toISOString()
     };
     
@@ -100,12 +115,12 @@ export default function InboxPage() {
   };
 
   const handleTakeover = () => {
-    if (!socket || !activeConversation) return;
-    socket.emit('take_over', activeConversation.id);
+    if (!socket || !activeConversation || !user) return;
+    socket.emit('take_over', { conversationId: activeConversation.id, agentId: user.id });
     
     setConversations(prev => prev.map(conv => {
       if (conv.id === activeConversation.id) {
-        return { ...conv, isAIActive: false };
+        return { ...conv, assignedAgentId: user.id, assignedAIId: null, status: 'ASSIGNED' };
       }
       return conv;
     }));
@@ -133,25 +148,28 @@ export default function InboxPage() {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {conversations.map(conv => (
-            <div 
-              key={conv.id}
-              onClick={() => setActiveConvId(conv.id)}
-              className={`p-3 rounded-xl cursor-pointer transition-all duration-200 ${activeConvId === conv.id ? 'bg-indigo-500/20 border border-indigo-500/30' : 'hover:bg-neutral-800 border border-transparent'}`}
-            >
-              <div className="flex justify-between items-start mb-1">
-                <h3 className="font-medium">{conv.customerName}</h3>
-                {conv.isAIActive ? (
-                  <span className="text-[10px] font-bold tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">AI</span>
-                ) : (
-                  <span className="text-[10px] font-bold tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">HUMAN</span>
-                )}
+          {conversations.map(conv => {
+            const isAIActive = conv.assignedAIId && !conv.assignedAgentId && conv.status !== 'CLOSED';
+            return (
+              <div 
+                key={conv.id}
+                onClick={() => setActiveConvId(conv.id)}
+                className={`p-3 rounded-xl cursor-pointer transition-all duration-200 ${activeConvId === conv.id ? 'bg-indigo-500/20 border border-indigo-500/30' : 'hover:bg-neutral-800 border border-transparent'}`}
+              >
+                <div className="flex justify-between items-start mb-1">
+                  <h3 className="font-medium">{conv.customer?.name || 'Anonymous'}</h3>
+                  {isAIActive ? (
+                    <span className="text-[10px] font-bold tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">AI</span>
+                  ) : (
+                    <span className="text-[10px] font-bold tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">HUMAN</span>
+                  )}
+                </div>
+                <p className="text-xs text-neutral-400 line-clamp-1">
+                  {conv.messages[conv.messages.length - 1]?.content || 'No messages yet'}
+                </p>
               </div>
-              <p className="text-xs text-neutral-400 line-clamp-1">
-                {conv.messages[conv.messages.length - 1]?.content}
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -163,16 +181,16 @@ export default function InboxPage() {
             <div className="p-4 border-b border-neutral-800 flex justify-between items-center bg-neutral-900/80">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold">
-                  {activeConversation.customerName.charAt(0)}
+                  {activeConversation.customer?.name?.charAt(0) || 'A'}
                 </div>
                 <div>
-                  <h2 className="font-semibold">{activeConversation.customerName}</h2>
+                  <h2 className="font-semibold">{activeConversation.customer?.name || 'Anonymous'}</h2>
                   <p className="text-xs text-neutral-400">
-                    {activeConversation.isAIActive ? 'AI is handling this chat' : 'You are chatting with customer'}
+                    {activeConversation.assignedAIId && !activeConversation.assignedAgentId ? 'AI is handling this chat' : 'You are chatting with customer'}
                   </p>
                 </div>
               </div>
-              {activeConversation.isAIActive && (
+              {activeConversation.assignedAIId && !activeConversation.assignedAgentId && (
                 <button 
                   onClick={handleTakeover}
                   className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-emerald-500/20"
@@ -185,8 +203,8 @@ export default function InboxPage() {
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {activeConversation.messages.map(msg => {
-                const isCustomer = msg.sender === 'CUSTOMER';
-                const isAI = msg.sender === 'AI';
+                const isCustomer = msg.senderType === 'CUSTOMER';
+                const isAI = msg.senderType === 'AI_EMPLOYEE';
                 
                 return (
                   <div key={msg.id} className={`flex ${isCustomer ? 'justify-start' : 'justify-end'}`}>
@@ -212,7 +230,7 @@ export default function InboxPage() {
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder={activeConversation.isAIActive ? "Type to take over and reply..." : "Type your reply..."}
+                  placeholder={activeConversation.assignedAIId && !activeConversation.assignedAgentId ? "Type to take over and reply..." : "Type your reply..."}
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl py-3 pl-4 pr-12 focus:outline-none focus:border-indigo-500 transition-colors text-sm"
                 />
                 <button 
