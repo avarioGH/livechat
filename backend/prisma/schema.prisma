@@ -7,142 +7,586 @@ datasource db {
 }
 
 // -----------------------------------------------------------------------------
-// Tenant (Client Subscribers)
+// Core Tenant & Organization
 // -----------------------------------------------------------------------------
-model Tenant {
-  id                   String          @id @default(uuid())
+model Organization {
+  id                   String             @id @default(uuid())
   name                 String
-  domain               String?         // Allowed domains for the widget
-  isActive             Boolean         @default(true)
+  industry             String?
+  isActive             Boolean            @default(true)
   
-  // Billing & Subscription
-  stripeCustomerId     String?
-  stripeSubscriptionId String?
-  subscriptionStatus   SubscriptionStatus @default(TRIAL)
-  plan                 PlanType           @default(FREE)
+  // Relations
+  users                OrganizationMember[]
+  sites                Site[]
+  teams                Team[]
+  aiEmployees          AIEmployee[]
+  customers            Customer[]
+  conversations        Conversation[]
+  knowledgeBases       KnowledgeBase[]
+  roles                Role[]
+  cannedResponses      CannedResponse[]
+  integrations         Integration[]
+  webhooks             Webhook[]
+  apiKeys              ApiKey[]
+  auditLogs            AuditLog[]
+  
+  // Billing
+  subscription         Subscription?
+  aiWallet             AICreditWallet?
 
-  createdAt            DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-
-  users          User[]
-  conversations  Conversation[]
-  aiPersonas     AIPersona[]
-  knowledgeBase  KnowledgeBase[]
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 }
 
-// -----------------------------------------------------------------------------
-// User (Client Admins / Super Admin)
-// -----------------------------------------------------------------------------
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String   // Hashed
-  name      String
-  role      Role     @default(ADMIN) // SUPER_ADMIN or ADMIN (tenant admin)
+  id              String               @id @default(uuid())
+  email           String               @unique
+  passwordHash    String
+  name            String
+  avatar          String?
+  jobTitle        String?
+  isActive        Boolean              @default(true)
   
-  tenantId  String?
-  tenant    Tenant?  @relation(fields: [tenantId], references: [id])
+  // Relations
+  memberships     OrganizationMember[]
+  agentStatus     AgentStatus?
   
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 }
 
-enum Role {
-  SUPER_ADMIN // Owner of the SaaS
-  ADMIN       // Client's admin
+model OrganizationMember {
+  id             String       @id @default(uuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  roleId         String?
+  role           Role?        @relation(fields: [roleId], references: [id])
+  
+  isOwner        Boolean      @default(false)
+  
+  teamMemberships TeamMember[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([userId, organizationId])
+}
+
+model Role {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String       // e.g., Admin, Agent, Viewer
+  permissions    Json         // Array of permission strings
+  
+  members        OrganizationMember[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
 // -----------------------------------------------------------------------------
-// AI Persona & Knowledge Base
+// Agents & Teams
 // -----------------------------------------------------------------------------
-model AIPersona {
-  id              String   @id @default(uuid())
-  name            String   @default("AI Assistant")
-  systemPrompt    String   @default("You are a helpful customer support agent.")
-  provider        AIProvider @default(OPENAI) // OPENAI or GEMINI
-  isActive        Boolean  @default(true)
+model AgentStatus {
+  id                     String    @id @default(uuid())
+  userId                 String    @unique
+  user                   User      @relation(fields: [userId], references: [id])
+  status                 String    // ONLINE, OFFLINE, AWAY
+  isAcceptingChats       Boolean   @default(true)
+  maxConcurrentChats     Int       @default(3)
+  currentActiveChats     Int       @default(0)
   
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  workingHours           WorkingHours[]
+
+  updatedAt              DateTime  @updatedAt
 }
 
-enum AIProvider {
-  OPENAI
-  GEMINI
+model Team {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  description    String?
+  
+  members        TeamMember[]
+  routingRules   RoutingRule[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
-model KnowledgeBase {
-  id        String   @id @default(uuid())
-  title     String
-  content   String   @db.Text // Can be raw text from PDF/web
-  vectorId  String?  // Reference to Pinecone/Weaviate vector ID
+model TeamMember {
+  id             String             @id @default(uuid())
+  teamId         String
+  team           Team               @relation(fields: [teamId], references: [id])
+  memberId       String
+  member         OrganizationMember @relation(fields: [memberId], references: [id])
   
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  @@unique([teamId, memberId])
+}
+
+model WorkingHours {
+  id             String       @id @default(uuid())
+  agentStatusId  String
+  agentStatus    AgentStatus  @relation(fields: [agentStatusId], references: [id])
+  dayOfWeek      Int          // 0-6 (Sunday-Saturday)
+  startTime      String       // "09:00"
+  endTime        String       // "17:00"
+  timezone       String       @default("UTC")
+}
+
+// -----------------------------------------------------------------------------
+// Site & Widget
+// -----------------------------------------------------------------------------
+model Site {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  domain         String       // Verified domain
+  publicKey      String       @unique @default(uuid()) // Used for widget JS embed
   
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  widgetConfig   WidgetConfig?
+  conversations  Conversation[]
+  visitors       Visitor[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model WidgetConfig {
+  id               String   @id @default(uuid())
+  siteId           String   @unique
+  site             Site     @relation(fields: [siteId], references: [id])
+  
+  primaryColor     String   @default("#4f46e5")
+  accentColor      String   @default("#6366f1")
+  position         String   @default("right")
+  title            String   @default("Live Chat")
+  welcomeMessage   String   @default("Hi! How can we help you today?")
+  language         String   @default("en")
+  desktopBehavior  String   @default("auto_open")
+  mobileBehavior   String   @default("bubble")
+  preChatForm      Boolean  @default(false)
+  offlineMessage   String   @default("We are currently offline. Please leave a message.")
+
+  updatedAt        DateTime @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// Customers & Visitors
+// -----------------------------------------------------------------------------
+model Customer {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  
+  name           String?
+  email          String?
+  phone          String?
+  avatar         String?
+  country        String?
+  tags           String[]     // Denormalized simple tags
+  notes          String?      @db.Text
+  
+  conversations  Conversation[]
+  visitors       Visitor[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  lastSeenAt     DateTime     @default(now())
+}
+
+model Visitor {
+  id             String       @id @default(uuid())
+  siteId         String
+  site           Site         @relation(fields: [siteId], references: [id])
+  customerId     String?
+  customer       Customer?    @relation(fields: [customerId], references: [id])
+  
+  ipAddress      String?
+  userAgent      String?
+  browser        String?
+  os             String?
+  device         String?
+  currentPage    String?
+  referrer       String?
+  
+  createdAt      DateTime     @default(now())
+  lastPingAt     DateTime     @default(now())
 }
 
 // -----------------------------------------------------------------------------
 // Conversations & Messages
 // -----------------------------------------------------------------------------
 model Conversation {
-  id           String   @id @default(uuid())
-  customerId   String   // Can be a generated UUID in localStorage of customer browser
-  customerName String?  
-  customerEmail String?
-  status       ChatStatus @default(OPEN)
+  id               String       @id @default(uuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  siteId           String
+  site             Site         @relation(fields: [siteId], references: [id])
+  customerId       String
+  customer         Customer     @relation(fields: [customerId], references: [id])
   
-  // Handover state: true means AI handles it, false means Human takes over
-  isAIActive   Boolean  @default(true) 
+  assignedAgentId  String?      // Could refer to OrganizationMember.id
+  assignedAIId     String?
+  aiEmployee       AIEmployee?  @relation(fields: [assignedAIId], references: [id])
   
-  tenantId     String
-  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  status           String       @default("OPEN") // OPEN, PENDING, WAITING, ASSIGNED, RESOLVED, CLOSED
+  priority         String       @default("NORMAL")
+  channel          String       @default("WIDGET") // WIDGET, WHATSAPP, etc
   
-  messages     Message[]
-  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
+  messages         Message[]
+  tags             ConversationTag[]
+  internalNotes    InternalNote[]
 
-enum ChatStatus {
-  OPEN
-  RESOLVED
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  closedAt         DateTime?
 }
 
 model Message {
-  id             String   @id @default(uuid())
-  content        String   @db.Text
-  sender         SenderType
+  id               String       @id @default(uuid())
+  conversationId   String
+  conversation     Conversation @relation(fields: [conversationId], references: [id])
   
+  senderId         String       // Customer ID, Agent ID, or AI ID
+  senderType       String       // "CUSTOMER", "HUMAN_AGENT", "AI_EMPLOYEE", "SYSTEM"
+  
+  content          String       @db.Text
+  messageType      String       @default("TEXT") // TEXT, IMAGE, FILE, QUICK_REPLY, PRODUCT_CARD
+  
+  attachments      Attachment[]
+  
+  createdAt        DateTime     @default(now())
+  deliveredAt      DateTime?
+  readAt           DateTime?
+}
+
+model Attachment {
+  id           String   @id @default(uuid())
+  messageId    String
+  message      Message  @relation(fields: [messageId], references: [id])
+  
+  fileName     String
+  mimeType     String
+  size         Int
+  storageKey   String
+  url          String
+  
+  createdAt    DateTime @default(now())
+}
+
+model Tag {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  color          String?
+  
+  conversations  ConversationTag[]
+}
+
+model ConversationTag {
+  id             String       @id @default(uuid())
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id])
+  tagId          String
+  tag            Tag          @relation(fields: [tagId], references: [id])
   
-  createdAt      DateTime @default(now())
+  @@unique([conversationId, tagId])
 }
 
-enum SenderType {
-  CUSTOMER
-  AI
-  HUMAN_ADMIN
+model InternalNote {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  authorId       String       // Agent ID
+  content        String       @db.Text
+  
+  createdAt      DateTime     @default(now())
+}
+
+model CannedResponse {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  shortcut       String
+  content        String       @db.Text
+  category       String?
+}
+
+model RoutingRule {
+  id             String       @id @default(uuid())
+  teamId         String?
+  team           Team?        @relation(fields: [teamId], references: [id])
+  
+  condition      Json         // e.g., { "url": "contains", "value": "/pricing" }
+  action         String       // ASSIGN_TO_TEAM, ASSIGN_TO_AI
+  targetId       String       // Team ID or AI Employee ID
+  
+  isActive       Boolean      @default(true)
 }
 
 // -----------------------------------------------------------------------------
-// Billing Enums
+// AI Employees & Knowledge Base
 // -----------------------------------------------------------------------------
-enum SubscriptionStatus {
-  TRIAL
-  ACTIVE
-  PAST_DUE
-  CANCELED
+model AIEmployee {
+  id                  String       @id @default(uuid())
+  organizationId      String
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  
+  name                String
+  avatar              String?
+  role                String
+  description         String?
+  personality         String
+  communicationStyle  String
+  language            String       @default("id")
+  systemInstruction   String       @db.Text
+  
+  provider            String       @default("OPENAI") // OPENAI, GEMINI
+  model               String       @default("gpt-4o")
+  temperature         Float        @default(0.7)
+  maxResponseTokens   Int          @default(500)
+  
+  isActive            Boolean      @default(true)
+  autoReplyEnabled    Boolean      @default(true)
+  humanHandoffEnabled Boolean      @default(true)
+  
+  knowledgeSources    AIEmployeeKnowledge[]
+  conversations       Conversation[]
+
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 }
 
-enum PlanType {
-  FREE
-  PRO
-  ENTERPRISE
+model KnowledgeBase {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  description    String?
+  
+  sources        KnowledgeSource[]
+  aiEmployees    AIEmployeeKnowledge[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model AIEmployeeKnowledge {
+  id              String        @id @default(uuid())
+  aiEmployeeId    String
+  aiEmployee      AIEmployee    @relation(fields: [aiEmployeeId], references: [id])
+  knowledgeBaseId String
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id])
+  
+  @@unique([aiEmployeeId, knowledgeBaseId])
+}
+
+model KnowledgeSource {
+  id              String        @id @default(uuid())
+  knowledgeBaseId String
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id])
+  
+  type            String        // DOCUMENT, URL, FAQ, TEXT
+  name            String
+  status          String        @default("PENDING") // PENDING, PROCESSING, READY, FAILED
+  metadata        Json?         // URL, file storage key, etc.
+  
+  documents       KnowledgeDocument[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model KnowledgeDocument {
+  id                String          @id @default(uuid())
+  knowledgeSourceId String
+  knowledgeSource   KnowledgeSource @relation(fields: [knowledgeSourceId], references: [id])
+  
+  title             String
+  content           String          @db.Text
+  
+  chunks            KnowledgeChunk[]
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+model KnowledgeChunk {
+  id                String            @id @default(uuid())
+  knowledgeDocumentId String
+  knowledgeDocument KnowledgeDocument @relation(fields: [knowledgeDocumentId], references: [id])
+  
+  content           String            @db.Text
+  vectorId          String?           // Reference to external VectorDB or pgvector
+  
+  createdAt         DateTime          @default(now())
+}
+
+// -----------------------------------------------------------------------------
+// Billing, Tokens & Integrations
+// -----------------------------------------------------------------------------
+model Subscription {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  
+  planId         String
+  status         String       @default("TRIAL") // TRIAL, ACTIVE, PAST_DUE, CANCELED
+  stripeCustomerId String?
+  stripeSubId    String?
+  
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model AICreditWallet {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  
+  balance        Int          @default(0) // Available credits
+  totalPurchased Int          @default(0)
+  totalUsed      Int          @default(0)
+  reserved       Int          @default(0) // Pending generation
+  
+  transactions   AICreditTransaction[]
+  usages         AIUsage[]
+
+  updatedAt      DateTime     @updatedAt
+}
+
+model AICreditTransaction {
+  id             String         @id @default(uuid())
+  walletId       String
+  wallet         AICreditWallet @relation(fields: [walletId], references: [id])
+  
+  amount         Int
+  type           String         // RECHARGE, USAGE, REFUND
+  description    String?
+  
+  createdAt      DateTime       @default(now())
+}
+
+model AIUsage {
+  id             String         @id @default(uuid())
+  walletId       String
+  wallet         AICreditWallet @relation(fields: [walletId], references: [id])
+  
+  userId         String?        // Agent requesting Copilot
+  aiEmployeeId   String?        // AI Employee responding
+  conversationId String?
+  
+  provider       String
+  model          String
+  inputTokens    Int
+  outputTokens   Int
+  totalTokens    Int
+  
+  inputCost      Float
+  outputCost     Float
+  totalCost      Float
+  creditsCharged Int
+  
+  createdAt      DateTime       @default(now())
+}
+
+model Integration {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  
+  provider       String       // SHOPIFY, WHATSAPP, etc
+  credentials    Json         // Encrypted
+  status         String       @default("CONNECTED")
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Webhook {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  
+  url            String
+  secret         String
+  events         String[]     // Array of event names
+  isActive       Boolean      @default(true)
+  
+  webhookEvents  WebhookEvent[]
+
+  createdAt      DateTime     @default(now())
+}
+
+model WebhookEvent {
+  id             String       @id @default(uuid())
+  webhookId      String
+  webhook        Webhook      @relation(fields: [webhookId], references: [id])
+  
+  event          String
+  payload        Json
+  status         String       @default("PENDING") // PENDING, SUCCESS, FAILED
+  error          String?      @db.Text
+  retryCount     Int          @default(0)
+  
+  createdAt      DateTime     @default(now())
+  processedAt    DateTime?
+}
+
+model ApiKey {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  
+  name           String
+  keyHash        String
+  lastUsedAt     DateTime?
+  
+  createdAt      DateTime     @default(now())
+  expiresAt      DateTime?
+}
+
+model AuditLog {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  
+  userId         String?      // Who performed the action
+  action         String
+  entityType     String
+  entityId       String?
+  metadata       Json?
+  
+  createdAt      DateTime     @default(now())
+}
+
+model Goal {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  type           String       // URL, EVENT
+  condition      Json
+  
+  events         GoalEvent[]
+}
+
+model GoalEvent {
+  id             String       @id @default(uuid())
+  goalId         String
+  goal           Goal         @relation(fields: [goalId], references: [id])
+  customerId     String?
+  conversationId String?
+  
+  revenue        Float?
+  
+  createdAt      DateTime     @default(now())
 }
