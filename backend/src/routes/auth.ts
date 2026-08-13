@@ -52,6 +52,19 @@ router.post('/register', async (req, res) => {
             model: 'gpt-4o-mini',
             provider: 'OPENAI'
           }
+        },
+        subscription: {
+          create: {
+            planId: 'FREE',
+            status: 'TRIAL',
+            currentPeriodStart: new Date(),
+            currentPeriodEnd: new Date(new Date().setDate(new Date().getDate() + 14))
+          }
+        },
+        aiWallet: {
+          create: {
+            balance: 1000 // Give 1000 free tokens for trial
+          }
         }
       },
       include: {
