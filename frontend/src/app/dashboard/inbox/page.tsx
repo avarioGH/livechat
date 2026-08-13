@@ -76,6 +76,14 @@ export default function InboxPage() {
       }));
     });
 
+    newSocket.on('new_conversation', (conv: Conversation) => {
+      setConversations(prev => {
+        // Prevent duplicates
+        if (prev.find(c => c.id === conv.id)) return prev;
+        return [conv, ...prev];
+      });
+    });
+
     return () => {
       newSocket.close();
     };

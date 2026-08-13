@@ -117,6 +117,16 @@ export default function WidgetPage({ params }: { params: { siteId: string } }) {
             </div>
           </div>
         </div>
+        <button 
+          onClick={() => {
+            if (window.parent) {
+              window.parent.postMessage({ type: 'AVARIO_WIDGET_CLOSE' }, '*');
+            }
+          }}
+          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/20 transition-colors shrink-0"
+        >
+          <X className="w-5 h-5 text-white" />
+        </button>
       </div>
 
       {/* Messages */}
