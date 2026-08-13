@@ -52,7 +52,7 @@ router.post('/', authenticateJWT, async (req, res) => {
 router.put('/:id/widget-config', authenticateJWT, async (req, res): Promise<any> => {
   try {
     const user = (req as any).user;
-    const { id } = req.params;
+    const id = req.params.id as string;
     
     const site = await prisma.site.findUnique({ where: { id } });
     if (!site || site.organizationId !== user.organizationId) {

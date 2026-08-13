@@ -33,10 +33,25 @@ export const initSocket = (io: Server) => {
               where: { organizationId: data.organizationId, isActive: true }
            });
            
+           let site = await prisma.site.findFirst({ where: { organizationId: data.organizationId } });
+           if (!site) {
+             site = await prisma.site.create({
+               data: { organizationId: data.organizationId, name: 'Default Site', domain: 'example.com' }
+             });
+           }
+           let customer = await prisma.customer.findFirst({ where: { organizationId: data.organizationId } });
+           if (!customer) {
+             customer = await prisma.customer.create({
+               data: { organizationId: data.organizationId, name: 'Default Customer' }
+             });
+           }
+           
            conversation = await prisma.conversation.create({
               data: {
                  id: data.conversationId,
                  organizationId: data.organizationId,
+                 siteId: site.id,
+                 customerId: customer.id,
                  status: 'OPEN',
                  assignedAIId: ai ? ai.id : null,
               },
@@ -75,7 +90,7 @@ export const initSocket = (io: Server) => {
                orderBy: { createdAt: 'desc' },
                take: 5
             });
-            const history = lastMessages.reverse().map(m => ({
+            const history = lastMessages.reverse().map((m: any) => ({
                role: (m.senderType === 'CUSTOMER' ? 'user' : 'assistant') as 'user' | 'assistant' | 'system',
                content: m.content
             }));

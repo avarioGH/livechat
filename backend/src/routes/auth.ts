@@ -45,9 +45,12 @@ router.post('/register', async (req, res) => {
             name: `${companyName} AI Assistant`,
             role: 'Support Agent',
             description: 'Default AI Assistant',
+            personality: 'Professional',
+            communicationStyle: 'Direct',
+            systemInstruction: 'You are a helpful customer support agent.',
             isActive: true,
             model: 'gpt-4o-mini',
-            provider: 'openai'
+            provider: 'OPENAI'
           }
         }
       },
@@ -60,7 +63,8 @@ router.post('/register', async (req, res) => {
       }
     });
 
-    const user = organization.users[0].user;
+    const user = organization.users[0]?.user;
+    if (!user) throw new Error('User not created');
 
     const token = jwt.sign(
       { userId: user.id, organizationId: organization.id },

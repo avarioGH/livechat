@@ -76,7 +76,7 @@ router.post('/webhook', async (req, res) => {
 
   try {
     if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated') {
-      const subscription = event.data.object as Stripe.Subscription;
+      const subscription = event.data.object as any;
       const customerId = subscription.customer as string;
       const status = subscription.status === 'active' ? 'ACTIVE' : 
                      subscription.status === 'past_due' ? 'PAST_DUE' : 'CANCELED';
@@ -98,7 +98,7 @@ router.post('/webhook', async (req, res) => {
         });
       }
     } else if (event.type === 'customer.subscription.deleted') {
-      const subscription = event.data.object as Stripe.Subscription;
+      const subscription = event.data.object as any;
       const customerId = subscription.customer as string;
 
       const existingSub = await prisma.subscription.findFirst({

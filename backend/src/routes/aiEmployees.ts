@@ -52,7 +52,7 @@ router.post('/', authenticateJWT, async (req, res) => {
 router.put('/:id/train', authenticateJWT, async (req, res): Promise<any> => {
   try {
     const user = (req as any).user;
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { knowledgeBaseId } = req.body;
     
     // Verify AI Employee ownership

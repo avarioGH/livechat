@@ -55,7 +55,7 @@ export const generateAIReply = async (
                 input: userLatestQuery,
                 encoding_format: 'float'
              });
-             queryEmbedding = embedResp.data[0].embedding;
+             queryEmbedding = embedResp.data[0]?.embedding || null;
           } catch (e) {
              console.error('Failed to embed user query:', e);
           }
@@ -63,7 +63,7 @@ export const generateAIReply = async (
 
        if (queryEmbedding) {
           const vectorStr = `[${queryEmbedding.join(',')}]`;
-          const kbIds = aiEmployee.knowledgeSources.map(ks => ks.knowledgeBaseId);
+          const kbIds = aiEmployee.knowledgeSources.map((ks: any) => ks.knowledgeBaseId);
           // 1 - (embedding <=> query) AS similarity (cosine similarity)
           const topChunks = await prisma.$queryRaw<any[]>`
              SELECT c.content, (1 - (c.embedding <=> ${vectorStr}::vector)) AS similarity
@@ -75,20 +75,20 @@ export const generateAIReply = async (
              ORDER BY c.embedding <=> ${vectorStr}::vector
              LIMIT 5;
           `;
-          contextString = topChunks.map(c => c.content).join("\n\n");
+          contextString = topChunks.map((c: any) => c.content).join("\n\n");
        } else {
           // Fallback: Just get random/latest chunks if no embedding available
           const topChunks = await prisma.knowledgeChunk.findMany({
              where: {
                 knowledgeDocument: {
                    knowledgeSource: {
-                      knowledgeBaseId: { in: aiEmployee.knowledgeSources.map(k => k.knowledgeBaseId) }
+                      knowledgeBaseId: { in: aiEmployee.knowledgeSources.map((k: any) => k.knowledgeBaseId) }
                    }
                 }
              },
              take: 5
           });
-          contextString = topChunks.map(c => c.content).join("\n\n");
+          contextString = topChunks.map((c: any) => c.content).join("\n\n");
        }
     }
     

@@ -70,7 +70,7 @@ router.post('/', authenticateJWT, async (req, res) => {
 router.post('/:kbId/text', authenticateJWT, async (req: Request, res: Response): Promise<any> => {
   try {
     const user = (req as any).user;
-    const { kbId } = req.params;
+    const kbId = req.params.kbId as string;
     const { title, textContent } = req.body;
     
     if (!title || !textContent) return res.status(400).json({ error: 'Title and textContent are required' });
@@ -98,7 +98,8 @@ router.post('/:kbId/text', authenticateJWT, async (req: Request, res: Response):
       include: { documents: true }
     });
 
-    const documentId = source.documents[0].id;
+    const documentId = source.documents[0]?.id;
+    if (!documentId) throw new Error('Document not created');
     
     // 2. Chunk text
     const chunks = chunkText(textContent);
@@ -117,7 +118,7 @@ router.post('/:kbId/text', authenticateJWT, async (req: Request, res: Response):
                input: chunkText,
                encoding_format: 'float'
             });
-            embeddingVec = embedResp.data[0].embedding;
+            embeddingVec = embedResp.data[0]?.embedding || null;
          }
       } catch (embedError) {
          console.error('Embedding error for chunk:', embedError);
