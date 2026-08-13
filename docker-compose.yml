@@ -19,7 +19,7 @@ services:
     container_name: livechat_backend
     restart: always
     ports:
-      - "5000:5000"
+      - "5001:5000"
     environment:
       DATABASE_URL: postgresql://postgres:password123@db:5432/livechat?schema=public
       PORT: 5000
