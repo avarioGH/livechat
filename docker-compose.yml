@@ -20,7 +20,6 @@ services:
     restart: always
     ports:
       - "5000:5000"
-      - "80:5000" # Tambahan port 80 untuk Cloudflare
     environment:
       DATABASE_URL: postgresql://postgres:password123@db:5432/livechat?schema=public
       PORT: 5000
