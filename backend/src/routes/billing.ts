@@ -7,6 +7,30 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'dummy_key_for_now', 
   apiVersion: '2025-01-27.acacia' as any,
 });
 
+// Get current subscription status
+router.get('/', async (req, res) => {
+  try {
+    const organizationId = req.query.organizationId as string;
+    if (!organizationId) return res.status(400).json({ error: 'Organization ID is required' });
+
+    const subscription = await prisma.subscription.findUnique({
+      where: { organizationId }
+    });
+
+    if (!subscription) {
+      return res.json({ plan: 'FREE', status: 'TRIAL', nextBillingDate: null });
+    }
+
+    res.json({
+      plan: subscription.planId,
+      status: subscription.status,
+      nextBillingDate: subscription.currentPeriodEnd
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Create Stripe Checkout Session
 router.post('/create-checkout', async (req, res) => {
   try {

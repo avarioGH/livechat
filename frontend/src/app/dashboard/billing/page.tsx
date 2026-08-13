@@ -1,16 +1,33 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function BillingPage() {
-  const [currentPlan] = useState<'FREE' | 'PRO' | 'ENTERPRISE'>('FREE');
+  const [currentPlan, setCurrentPlan] = useState<'FREE' | 'PRO' | 'ENTERPRISE'>('FREE');
+  const [nextBillingDate, setNextBillingDate] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
+
+  useEffect(() => {
+    // In a real app, tenantId is derived from auth context
+    const tenantId = 'test-tenant-id';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    fetch(`${apiUrl}/api/billing?organizationId=${tenantId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.plan) setCurrentPlan(data.plan);
+        if (data.nextBillingDate) setNextBillingDate(new Date(data.nextBillingDate).toLocaleDateString());
+      })
+      .catch(err => console.error('Failed to fetch billing:', err))
+      .finally(() => setIsFetching(false));
+  }, []);
 
   const handleCheckout = async (plan: string) => {
     setIsLoading(true);
     try {
       // In a real app, tenantId is derived from auth context
-      const res = await fetch('http://localhost:5000/api/billing/create-checkout', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const res = await fetch(`${apiUrl}/api/billing/create-checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tenantId: 'test-tenant-id', plan })
@@ -49,7 +66,9 @@ export default function BillingPage() {
               ACTIVE
             </span>
           </div>
-          <p className="text-sm text-neutral-500 mt-2">Your next billing cycle is on Nov 1, 2026.</p>
+          {nextBillingDate && (
+            <p className="text-sm text-neutral-500 mt-2">Your next billing cycle is on {nextBillingDate}.</p>
+          )}
         </div>
         <div>
           <button className="px-4 py-2 border border-neutral-700 hover:bg-neutral-800 rounded-lg text-sm transition-colors">
@@ -130,6 +149,12 @@ export default function BillingPage() {
         </div>
 
       </div>
+
+      {isFetching && (
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10 backdrop-blur-sm rounded-2xl">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+        </div>
+      )}
     </div>
   );
 }
