@@ -26,6 +26,18 @@ const chunkText = (text: string, maxChars = 1000) => {
   return chunks;
 };
 
+// Helper to extract text from HTML
+const extractTextFromHtml = (html: string) => {
+  // Remove scripts and styles completely
+  let text = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ');
+  text = text.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ');
+  // Remove all other HTML tags
+  text = text.replace(/<[^>]+>/g, ' ');
+  // Remove extra whitespace
+  text = text.replace(/\s+/g, ' ').trim();
+  return text;
+};
+
 // GET: List Knowledge Bases
 router.get('/', authenticateJWT, async (req, res) => {
   try {
@@ -152,6 +164,108 @@ router.post('/:kbId/text', authenticateJWT, async (req: Request, res: Response):
     res.status(201).json({ message: 'Source processed successfully', chunksCreated: successfulChunks });
   } catch (error) {
     console.error('Error adding text to KB:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST: Add URL source to KB and scrape it
+router.post('/:kbId/url', authenticateJWT, async (req: Request, res: Response): Promise<any> => {
+  try {
+    const user = (req as any).user;
+    const kbId = req.params.kbId as string;
+    const { url } = req.body;
+    
+    if (!url) return res.status(400).json({ error: 'URL is required' });
+
+    // Verify KB belongs to Org
+    const kb = await prisma.knowledgeBase.findUnique({ where: { id: kbId } });
+    if (!kb || kb.organizationId !== user.organizationId) {
+      return res.status(404).json({ error: 'Knowledge Base not found' });
+    }
+
+    // Fetch URL
+    const fetchRes = await fetch(url);
+    if (!fetchRes.ok) {
+       return res.status(400).json({ error: 'Failed to fetch the URL' });
+    }
+    const html = await fetchRes.text();
+    const textContent = extractTextFromHtml(html);
+    
+    if (!textContent) {
+       return res.status(400).json({ error: 'No readable text found at URL' });
+    }
+
+    // 1. Create Source & Document
+    const source = await prisma.knowledgeSource.create({
+      data: {
+        knowledgeBaseId: kbId,
+        type: 'WEBSITE',
+        name: url,
+        status: 'PROCESSING',
+        documents: {
+          create: {
+            title: url,
+            content: textContent
+          }
+        }
+      },
+      include: { documents: true }
+    });
+
+    const documentId = source.documents[0]?.id;
+    if (!documentId) throw new Error('Document not created');
+    
+    // 2. Chunk text
+    const chunks = chunkText(textContent);
+    
+    // 3. Generate embeddings & Save chunks
+    let successfulChunks = 0;
+    
+    for (const chunkText of chunks) {
+      if (!chunkText) continue;
+      
+      let embeddingVec = null;
+      try {
+         if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'dummy_key') {
+            const embedResp = await openai.embeddings.create({
+               model: 'text-embedding-3-small',
+               input: chunkText,
+               encoding_format: 'float'
+            });
+            embeddingVec = embedResp.data[0]?.embedding || null;
+         }
+      } catch (embedError) {
+         console.error('Embedding error for chunk:', embedError);
+         // Continue without embedding for this chunk in fallback mode
+      }
+
+      // We use raw SQL to insert the vector because of Prisma's limited native insert for Unsupported("vector")
+      if (embeddingVec) {
+          const vectorStr = `[${embeddingVec.join(',')}]`;
+          await prisma.$executeRaw`
+            INSERT INTO "KnowledgeChunk" ("id", "knowledgeDocumentId", "content", "embedding", "createdAt")
+            VALUES (gen_random_uuid(), ${documentId}::uuid, ${chunkText}, ${vectorStr}::vector, now())
+          `;
+      } else {
+          await prisma.knowledgeChunk.create({
+             data: {
+                knowledgeDocumentId: documentId,
+                content: chunkText
+             }
+          });
+      }
+      successfulChunks++;
+    }
+
+    // Update status to READY
+    await prisma.knowledgeSource.update({
+      where: { id: source.id },
+      data: { status: 'READY' }
+    });
+
+    res.status(201).json({ message: 'URL processed successfully', chunksCreated: successfulChunks });
+  } catch (error) {
+    console.error('Error adding URL to KB:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

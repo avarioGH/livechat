@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Database, Plus, FileText, UploadCloud, X, RefreshCw } from "lucide-react";
+import { Database, Plus, FileText, UploadCloud, X, RefreshCw, Link2 } from "lucide-react";
 
 type KnowledgeBase = {
   id: string;
@@ -14,10 +14,12 @@ export default function KnowledgeBasePage() {
   const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
   const [showKBModal, setShowKBModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showUrlModal, setShowUrlModal] = useState(false);
   const [activeKB, setActiveKB] = useState<string | null>(null);
   
   const [kbForm, setKbForm] = useState({ name: '', description: '' });
   const [uploadForm, setUploadForm] = useState({ title: '', textContent: '' });
+  const [urlForm, setUrlForm] = useState({ url: '' });
   
   const [token, setToken] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -100,6 +102,35 @@ export default function KnowledgeBasePage() {
     }
   };
 
+  const handleUploadUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !activeKB) return;
+
+    setIsProcessing(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/knowledge/${activeKB}/url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(urlForm)
+      });
+      if (res.ok) {
+        setShowUrlModal(false);
+        setUrlForm({ url: '' });
+        fetchKBs(token);
+        alert('URL berhasil diproses dan di-embed!');
+      } else {
+        alert('Gagal memproses URL. Pastikan URL valid.');
+      }
+    } catch (error) {
+      console.error('Failed to process URL', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <div className="p-8 max-w-7xl mx-auto h-full overflow-y-auto">
       <div className="flex justify-between items-center mb-8">
@@ -138,13 +169,22 @@ export default function KnowledgeBasePage() {
               </div>
             </div>
 
-            <button 
-              onClick={() => { setActiveKB(kb.id); setShowUploadModal(true); }}
-              className="w-full py-2.5 bg-neutral-800 hover:bg-indigo-600 text-white text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 group"
-            >
-              <UploadCloud className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
-              Unggah Teks Baru
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => { setActiveKB(kb.id); setShowUploadModal(true); }}
+                className="w-1/2 py-2.5 bg-neutral-800 hover:bg-indigo-600 text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-2 group"
+              >
+                <FileText className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
+                Upload Teks
+              </button>
+              <button 
+                onClick={() => { setActiveKB(kb.id); setShowUrlModal(true); }}
+                className="w-1/2 py-2.5 bg-neutral-800 hover:bg-indigo-600 text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-2 group"
+              >
+                <Link2 className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
+                Scrape URL
+              </button>
+            </div>
           </div>
         ))}
 
@@ -228,6 +268,44 @@ export default function KnowledgeBasePage() {
                     <><RefreshCw className="w-4 h-4 animate-spin" /> Memproses...</>
                   ) : (
                     <><UploadCloud className="w-4 h-4" /> Mulai Latih</>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Upload URL Modal */}
+      {showUrlModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-neutral-800 flex justify-between items-center bg-indigo-500/5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
+                  <Link2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Scrape URL Website</h2>
+                  <p className="text-xs text-neutral-400 mt-0.5">Sistem akan otomatis mengekstrak teks dari URL.</p>
+                </div>
+              </div>
+              <button onClick={() => !isProcessing && setShowUrlModal(false)} className="text-neutral-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleUploadUrl} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase tracking-wider">URL Website</label>
+                <input required type="url" value={urlForm.url} onChange={e => setUrlForm({...urlForm, url: e.target.value})} disabled={isProcessing} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 disabled:opacity-50" placeholder="https://example.com/kebijakan" />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-neutral-800 mt-6">
+                <button type="button" onClick={() => !isProcessing && setShowUrlModal(false)} disabled={isProcessing} className="px-5 py-2.5 rounded-xl text-sm font-medium text-neutral-400 hover:text-white transition-colors disabled:opacity-50">Batal</button>
+                <button type="submit" disabled={isProcessing} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-lg shadow-indigo-500/20 disabled:opacity-50 flex items-center gap-2">
+                  {isProcessing ? (
+                    <><RefreshCw className="w-4 h-4 animate-spin" /> Scraping...</>
+                  ) : (
+                    <><Link2 className="w-4 h-4" /> Mulai Scrape</>
                   )}
                 </button>
               </div>
