@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 export default function BillingPage() {
   const [currentPlan, setCurrentPlan] = useState<'FREE' | 'PRO' | 'ENTERPRISE'>('FREE');
   const [nextBillingDate, setNextBillingDate] = useState<string | null>(null);
+  const [aiWallet, setAiWallet] = useState<{ balance: number, totalUsed: number }>({ balance: 0, totalUsed: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
 
@@ -17,6 +18,7 @@ export default function BillingPage() {
       .then(data => {
         if (data.plan) setCurrentPlan(data.plan);
         if (data.nextBillingDate) setNextBillingDate(new Date(data.nextBillingDate).toLocaleDateString());
+        if (data.aiWallet) setAiWallet(data.aiWallet);
       })
       .catch(err => console.error('Failed to fetch billing:', err))
       .finally(() => setIsFetching(false));
@@ -73,6 +75,22 @@ export default function BillingPage() {
         <div>
           <button className="px-4 py-2 border border-neutral-700 hover:bg-neutral-800 rounded-lg text-sm transition-colors">
             Manage Billing Settings
+          </button>
+        </div>
+      </div>
+
+      {/* AI Token Wallet */}
+      <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 backdrop-blur-xl mb-8 flex items-center justify-between">
+        <div>
+          <p className="text-sm text-neutral-400 font-medium uppercase tracking-wider mb-1">AI Credits (Tokens)</p>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold text-white">{aiWallet.balance.toLocaleString()} <span className="text-sm font-normal text-neutral-500">Available</span></h2>
+          </div>
+          <p className="text-sm text-neutral-500 mt-2">Total Used: {aiWallet.totalUsed.toLocaleString()} tokens</p>
+        </div>
+        <div>
+          <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm transition-colors shadow-lg shadow-indigo-500/20">
+            Recharge Credits
           </button>
         </div>
       </div>

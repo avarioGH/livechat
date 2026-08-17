@@ -13,18 +13,16 @@ router.get('/', async (req, res) => {
     const organizationId = req.query.organizationId as string;
     if (!organizationId) return res.status(400).json({ error: 'Organization ID is required' });
 
-    const subscription = await prisma.subscription.findUnique({
-      where: { organizationId }
-    });
-
-    if (!subscription) {
-      return res.json({ plan: 'FREE', status: 'TRIAL', nextBillingDate: null });
-    }
+    const [subscription, aiWallet] = await Promise.all([
+      prisma.subscription.findUnique({ where: { organizationId } }),
+      prisma.aICreditWallet.findUnique({ where: { organizationId } })
+    ]);
 
     res.json({
-      plan: subscription.planId,
-      status: subscription.status,
-      nextBillingDate: subscription.currentPeriodEnd
+      plan: subscription?.planId || 'FREE',
+      status: subscription?.status || 'TRIAL',
+      nextBillingDate: subscription?.currentPeriodEnd || null,
+      aiWallet: aiWallet || { balance: 0, totalUsed: 0 }
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

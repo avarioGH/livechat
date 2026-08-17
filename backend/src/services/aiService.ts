@@ -20,13 +20,24 @@ const initGemini = () => {
   return gemini;
 };
 
+export interface AIReplyResult {
+  content: string;
+  usage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  provider: string;
+  model: string;
+}
+
 /**
  * Generate a reply using the configured AI provider for a specific Organization.
  */
 export const generateAIReply = async (
   organizationId: string,
   conversationHistory: { role: 'user' | 'assistant' | 'system', content: string }[]
-): Promise<string> => {
+): Promise<AIReplyResult> => {
   try {
     // 1. Fetch AI Employee configuration
     const aiEmployee = await prisma.aIEmployee.findFirst({
@@ -39,7 +50,12 @@ export const generateAIReply = async (
     });
 
     if (!aiEmployee) {
-      return "Mohon maaf, layanan pelanggan saat ini sedang offline.";
+      return {
+         content: "Mohon maaf, layanan pelanggan saat ini sedang offline.",
+         usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+         provider: 'NONE',
+         model: 'NONE'
+      };
     }
 
     // 2. Fetch Knowledge Base for RAG using pgvector similarity search
@@ -117,14 +133,24 @@ export const generateAIReply = async (
     }
   } catch (error) {
     console.error('Error generating AI reply:', error);
-    return "Maaf, sistem AI sedang mengalami gangguan saat ini. Mohon tunggu sebentar.";
+    return {
+       content: "Maaf, sistem AI sedang mengalami gangguan saat ini. Mohon tunggu sebentar.",
+       usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+       provider: 'ERROR',
+       model: 'ERROR'
+    };
   }
 };
 
 // Helper: Call OpenAI GPT
-const callOpenAI = async (messages: any[], model: string): Promise<string> => {
+const callOpenAI = async (messages: any[], model: string): Promise<AIReplyResult> => {
   if (process.env.OPENAI_API_KEY === 'dummy_key' || !process.env.OPENAI_API_KEY) {
-    return "[OpenAI System]: This is a dummy response. Please configure OPENAI_API_KEY in the .env file.";
+    return {
+       content: "[OpenAI System]: This is a dummy response. Please configure OPENAI_API_KEY in the .env file.",
+       usage: { promptTokens: 10, completionTokens: 15, totalTokens: 25 },
+       provider: 'OPENAI',
+       model: model || 'gpt-4o-mini'
+    };
   }
 
   const completion = await openai.chat.completions.create({
@@ -132,20 +158,41 @@ const callOpenAI = async (messages: any[], model: string): Promise<string> => {
     model: model || 'gpt-4o-mini',
   });
 
-  return completion.choices[0]?.message?.content || 'No response from OpenAI.';
+  return {
+     content: completion.choices[0]?.message?.content || 'No response from OpenAI.',
+     usage: {
+        promptTokens: completion.usage?.prompt_tokens || 0,
+        completionTokens: completion.usage?.completion_tokens || 0,
+        totalTokens: completion.usage?.total_tokens || 0
+     },
+     provider: 'OPENAI',
+     model: model || 'gpt-4o-mini'
+  };
 };
 
 // Helper: Call Google Gemini
-const callGemini = async (messages: any[], model: string): Promise<string> => {
+const callGemini = async (messages: any[], model: string): Promise<AIReplyResult> => {
   if (process.env.GEMINI_API_KEY === 'dummy_key' || !process.env.GEMINI_API_KEY) {
-    return "[Gemini System]: This is a dummy response. Please configure GEMINI_API_KEY in the .env file.";
+    return {
+       content: "[Gemini System]: This is a dummy response. Please configure GEMINI_API_KEY in the .env file.",
+       usage: { promptTokens: 10, completionTokens: 15, totalTokens: 25 },
+       provider: 'GEMINI',
+       model: model || 'gemini-2.5-flash'
+    };
   }
 
   const systemInstruction = messages.find((m: any) => m.role === 'system')?.content || '';
   const userMessages = messages.filter((m: any) => m.role !== 'system').map((m: any) => m.content).join('\n');
   
   const geminiInstance = initGemini();
-  if (!geminiInstance) return 'Gemini SDK is initializing, please try again.';
+  if (!geminiInstance) {
+     return {
+        content: 'Gemini SDK is initializing, please try again.',
+        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        provider: 'GEMINI',
+        model: model || 'gemini-2.5-flash'
+     };
+  }
 
   const response = await geminiInstance.models.generateContent({
     model: model || 'gemini-2.5-flash',
@@ -155,5 +202,16 @@ const callGemini = async (messages: any[], model: string): Promise<string> => {
     }
   });
 
-  return response.text || 'No response from Gemini.';
+  // Note: Old versions of google/genai may structure usage differently.
+  // Using optional chaining as best effort.
+  return {
+     content: response.text || 'No response from Gemini.',
+     usage: {
+        promptTokens: response.usageMetadata?.promptTokenCount || 0,
+        completionTokens: response.usageMetadata?.candidatesTokenCount || 0,
+        totalTokens: response.usageMetadata?.totalTokenCount || 0
+     },
+     provider: 'GEMINI',
+     model: model || 'gemini-2.5-flash'
+  };
 };

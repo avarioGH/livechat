@@ -95,13 +95,54 @@ export const initSocket = (io: Server) => {
                content: m.content
             }));
 
-            const aiReplyText = await generateAIReply(data.organizationId, history);
+            // Check Wallet Balance Before Replying
+            const wallet = await prisma.aICreditWallet.findUnique({
+               where: { organizationId: data.organizationId }
+            });
+
+            if (!wallet || wallet.balance <= 0) {
+               console.log(`Wallet empty for Org ${data.organizationId}. AI cannot reply.`);
+               // Send a system message indicating AI is paused due to credits? We can just skip for MVP
+               return;
+            }
+
+            const aiReplyResult = await generateAIReply(data.organizationId, history);
+
+            // Deduct Tokens & Record Usage
+            if (aiReplyResult.usage.totalTokens > 0) {
+               const cost = aiReplyResult.usage.totalTokens; // 1 token = 1 credit baseline
+               await prisma.$transaction([
+                  prisma.aICreditWallet.update({
+                     where: { id: wallet.id },
+                     data: { 
+                        balance: { decrement: cost },
+                        totalUsed: { increment: cost }
+                     }
+                  }),
+                  prisma.aIUsage.create({
+                     data: {
+                        walletId: wallet.id,
+                        aiEmployeeId: conversation.assignedAIId,
+                        conversationId: data.conversationId,
+                        provider: aiReplyResult.provider,
+                        model: aiReplyResult.model,
+                        inputTokens: aiReplyResult.usage.promptTokens,
+                        outputTokens: aiReplyResult.usage.completionTokens,
+                        totalTokens: cost,
+                        inputCost: aiReplyResult.usage.promptTokens,
+                        outputCost: aiReplyResult.usage.completionTokens,
+                        totalCost: cost,
+                        creditsCharged: cost
+                     }
+                  })
+               ]);
+            }
 
             // Save AI Reply to DB
             const aiMessage = await prisma.message.create({
               data: {
                 conversationId: data.conversationId,
-                content: aiReplyText,
+                content: aiReplyResult.content,
                 senderId: conversation.assignedAIId,
                 senderType: 'AI_EMPLOYEE',
                 messageType: 'TEXT'
