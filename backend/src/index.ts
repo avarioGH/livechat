@@ -12,6 +12,7 @@ import aiEmployeesRoutes from './routes/aiEmployees';
 import knowledgeRoutes from './routes/knowledge';
 import sitesRoutes from './routes/sites';
 import teamRoutes from './routes/team';
+import analyticsRoutes from './routes/analytics';
 
 dotenv.config();
 
@@ -39,6 +40,7 @@ app.use('/api/ai/employees', aiEmployeesRoutes);
 app.use('/api/knowledge', knowledgeRoutes);
 app.use('/api/sites', sitesRoutes);
 app.use('/api/team', teamRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Live Chat API is running' });

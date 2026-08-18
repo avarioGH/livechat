@@ -1,8 +1,42 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { BarChart3, Users, MessageSquare, Zap } from "lucide-react";
 
 export default function DashboardOverview() {
+  const [stats, setStats] = useState({
+    totalChats: 0,
+    aiResolutionRate: "0.0",
+    activeUsers: 0,
+    avgResponseTime: "0.0"
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+        const res = await fetch(`${apiUrl}/api/analytics/overview`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          setStats(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch overview analytics:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchAnalytics();
+  }, []);
+
   return (
     <div className="p-8 max-w-7xl mx-auto h-full overflow-y-auto">
       <div className="mb-8">
@@ -20,7 +54,9 @@ export default function DashboardOverview() {
             </div>
             <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider">Total Chats</h3>
           </div>
-          <p className="text-3xl font-bold text-white mb-1">1,248</p>
+          <p className="text-3xl font-bold text-white mb-1">
+            {isLoading ? '...' : stats.totalChats}
+          </p>
           <p className="text-xs text-emerald-400">+12% dari minggu lalu</p>
         </div>
 
@@ -31,7 +67,9 @@ export default function DashboardOverview() {
             </div>
             <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider">AI Resolution Rate</h3>
           </div>
-          <p className="text-3xl font-bold text-white mb-1">85.4%</p>
+          <p className="text-3xl font-bold text-white mb-1">
+            {isLoading ? '...' : `${stats.aiResolutionRate}%`}
+          </p>
           <p className="text-xs text-emerald-400">+5.2% dari minggu lalu</p>
         </div>
 
@@ -42,7 +80,9 @@ export default function DashboardOverview() {
             </div>
             <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider">Active Users</h3>
           </div>
-          <p className="text-3xl font-bold text-white mb-1">342</p>
+          <p className="text-3xl font-bold text-white mb-1">
+            {isLoading ? '...' : stats.activeUsers}
+          </p>
           <p className="text-xs text-emerald-400">Sedang online</p>
         </div>
 
@@ -53,7 +93,9 @@ export default function DashboardOverview() {
             </div>
             <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider">Avg Response Time</h3>
           </div>
-          <p className="text-3xl font-bold text-white mb-1">0.8s</p>
+          <p className="text-3xl font-bold text-white mb-1">
+            {isLoading ? '...' : `${stats.avgResponseTime}s`}
+          </p>
           <p className="text-xs text-emerald-400">-0.2s dari minggu lalu</p>
         </div>
       </div>
