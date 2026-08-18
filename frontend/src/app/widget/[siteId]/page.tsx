@@ -27,9 +27,18 @@ export default function WidgetPage({ params }: { params: { siteId: string } }) {
           if (data.config?.welcomeMessage) {
             setMessages([{ id: 'welcome', content: data.config.welcomeMessage, senderType: 'AI_EMPLOYEE' }]);
           }
+        } else {
+          throw new Error('Failed to fetch from API');
         }
       } catch (e) {
-        console.error('Failed to load widget config', e);
+        console.warn('Failed to load widget config, using local fallback:', e);
+        // Fallback config so the widget UI doesn't crash on connection errors
+        setConfig({
+          title: 'Avario Support (Offline)',
+          primaryColor: '#6366f1',
+          welcomeMessage: 'Hi there! We are currently offline or having connection issues. Please try again later.'
+        });
+        setMessages([{ id: 'welcome', content: 'Hi there! We are currently offline or having connection issues. Please try again later.', senderType: 'AI_EMPLOYEE' }]);
       }
     };
     
