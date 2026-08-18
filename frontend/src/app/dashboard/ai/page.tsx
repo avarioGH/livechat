@@ -22,6 +22,8 @@ export default function AIEmployeesPage() {
   const [token, setToken] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
+  const [isCustomRole, setIsCustomRole] = useState(false);
+  const [isCustomStyle, setIsCustomStyle] = useState(false);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -258,14 +260,71 @@ export default function AIEmployeesPage() {
                   <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="e.g. Alex" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase tracking-wider">Role</label>
-                  <input required type="text" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="e.g. Sales" />
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wider">Role</label>
+                    {isCustomRole && (
+                      <button type="button" onClick={() => { setIsCustomRole(false); setFormData({...formData, role: 'Customer Support'}) }} className="text-[10px] text-indigo-400 hover:text-indigo-300">Pilih dari daftar</button>
+                    )}
+                  </div>
+                  {isCustomRole ? (
+                    <input required autoFocus type="text" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="Ketik role custom..." />
+                  ) : (
+                    <div className="relative">
+                      <select value={formData.role} onChange={e => {
+                        if(e.target.value === 'custom') {
+                          setIsCustomRole(true);
+                          setFormData({...formData, role: ''});
+                        } else {
+                          setFormData({...formData, role: e.target.value});
+                        }
+                      }} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 appearance-none">
+                        <option value="" disabled>Pilih Role</option>
+                        <option value="Customer Support">Customer Support</option>
+                        <option value="Sales Representative">Sales Representative</option>
+                        <option value="Technical Support">Technical Support</option>
+                        <option value="Account Manager">Account Manager</option>
+                        <option value="custom">+ Tulis Manual (Custom)...</option>
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <svg className="w-4 h-4 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase tracking-wider">Gaya Komunikasi</label>
-                <input required type="text" value={formData.communicationStyle} onChange={e => setFormData({...formData, communicationStyle: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="e.g. Profesional, Ramah, Gaul" />
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wider">Gaya Komunikasi</label>
+                  {isCustomStyle && (
+                    <button type="button" onClick={() => { setIsCustomStyle(false); setFormData({...formData, communicationStyle: 'Professional'}) }} className="text-[10px] text-indigo-400 hover:text-indigo-300">Pilih dari daftar</button>
+                  )}
+                </div>
+                {isCustomStyle ? (
+                  <input required autoFocus type="text" value={formData.communicationStyle} onChange={e => setFormData({...formData, communicationStyle: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="Ketik gaya komunikasi custom..." />
+                ) : (
+                  <div className="relative">
+                    <select value={formData.communicationStyle} onChange={e => {
+                      if(e.target.value === 'custom') {
+                        setIsCustomStyle(true);
+                        setFormData({...formData, communicationStyle: ''});
+                      } else {
+                        setFormData({...formData, communicationStyle: e.target.value});
+                      }
+                    }} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 appearance-none">
+                      <option value="" disabled>Pilih Gaya Komunikasi</option>
+                      <option value="Professional">Professional & Formal</option>
+                      <option value="Santai">Ramah & Santai (Friendly)</option>
+                      <option value="Energik">Antusias & Energik</option>
+                      <option value="Empatis">Empatis & Sabar</option>
+                      <option value="Singkat">Singkat & Jelas (Concise)</option>
+                      <option value="custom">+ Tulis Manual (Custom)...</option>
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <svg className="w-4 h-4 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -293,19 +352,29 @@ export default function AIEmployeesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase tracking-wider">Provider</label>
-                  <select value={formData.provider} onChange={e => setFormData({...formData, provider: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 appearance-none">
-                    <option value="OPENAI">OpenAI</option>
-                    <option value="GEMINI">Google Gemini</option>
-                  </select>
+                  <div className="relative">
+                    <select value={formData.provider} onChange={e => setFormData({...formData, provider: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 appearance-none">
+                      <option value="OPENAI">OpenAI</option>
+                      <option value="GEMINI">Google Gemini</option>
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <svg className="w-4 h-4 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase tracking-wider">Model</label>
-                  <select value={formData.model} onChange={e => setFormData({...formData, model: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 appearance-none">
-                    <option value="gpt-4o-mini">gpt-4o-mini</option>
-                    <option value="gpt-4o">gpt-4o</option>
-                    <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                    <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                  </select>
+                  <div className="relative">
+                    <select value={formData.model} onChange={e => setFormData({...formData, model: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 appearance-none">
+                      <option value="gpt-4o-mini">gpt-4o-mini</option>
+                      <option value="gpt-4o">gpt-4o</option>
+                      <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                      <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <svg className="w-4 h-4 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                  </div>
                 </div>
               </div>
 
