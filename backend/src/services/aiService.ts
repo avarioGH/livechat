@@ -215,3 +215,23 @@ const callGemini = async (messages: any[], model: string): Promise<AIReplyResult
      model: model || 'gemini-2.5-flash'
   };
 };
+
+/**
+ * Generate a detailed system prompt for an AI employee based on user inputs.
+ */
+export const generateSystemPrompt = async (name: string, role: string, style: string, provider: string = 'OPENAI', model: string = 'gpt-4o-mini'): Promise<string> => {
+  const prompt = `Buatkan instruksi sistem (system prompt) yang detail, profesional, dan komprehensif dalam bahasa Indonesia untuk AI Customer Service bernama ${name} yang bekerja sebagai ${role} dengan gaya komunikasi ${style}. Instruksi ini akan dimasukkan ke dalam konfigurasi LLM. Jangan sertakan pengantar, langsung tuliskan instruksinya saja.`;
+  
+  try {
+    if (provider === 'OPENAI') {
+      const resp = await callOpenAI([{ role: 'user', content: prompt }], model);
+      return resp.content;
+    } else {
+      const resp = await callGemini([{ role: 'user', content: prompt }], model);
+      return resp.content;
+    }
+  } catch (error) {
+    console.error('Error generating system prompt:', error);
+    return `Kamu adalah asisten customer service bernama ${name}. Tugasmu adalah melayani pelanggan dengan peran sebagai ${role}. Bicaralah dengan gaya bahasa ${style}.`;
+  }
+};

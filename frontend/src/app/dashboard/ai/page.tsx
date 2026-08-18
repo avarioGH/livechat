@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from "next/link";
-import { Plus, Bot, Settings2, Trash2, X } from "lucide-react";
+import { Plus, Bot, Settings2, Trash2, X, Sparkles } from "lucide-react";
 
 type AIEmployee = {
   id: string;
@@ -20,6 +20,8 @@ export default function AIEmployeesPage() {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ name: '', role: '', provider: 'OPENAI', model: 'gpt-4o-mini', systemInstruction: '', communicationStyle: 'Professional' });
   const [token, setToken] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -44,7 +46,8 @@ export default function AIEmployeesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
-
+    
+    setIsSubmitting(true);
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/ai/employees`, {
         method: 'POST',
@@ -59,9 +62,52 @@ export default function AIEmployeesPage() {
         setShowModal(false);
         setFormData({ name: '', role: '', provider: 'OPENAI', model: 'gpt-4o-mini', systemInstruction: '', communicationStyle: 'Professional' });
         fetchEmployees(token);
+      } else {
+        const errorData = await res.json();
+        alert(`Failed to create AI employee: ${errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Failed to create AI employee', error);
+      alert('Network error while creating AI employee.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGeneratePrompt = async () => {
+    if (!token) return;
+    if (!formData.name || !formData.role) {
+      alert("Silakan isi Nama AI dan Role terlebih dahulu untuk generate prompt.");
+      return;
+    }
+    
+    setIsGeneratingPrompt(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/ai/employees/generate-prompt`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          role: formData.role,
+          style: formData.communicationStyle,
+          provider: formData.provider,
+          model: formData.model
+        })
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setFormData({ ...formData, systemInstruction: data.prompt });
+      } else {
+        alert("Gagal generate prompt.");
+      }
+    } catch (error) {
+      console.error('Failed to generate prompt', error);
+    } finally {
+      setIsGeneratingPrompt(false);
     }
   };
 
@@ -194,7 +240,24 @@ export default function AIEmployeesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase tracking-wider">System Instruction (Custom Prompt)</label>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wider">System Instruction (Custom Prompt)</label>
+                  <button 
+                    type="button" 
+                    onClick={handleGeneratePrompt}
+                    disabled={isGeneratingPrompt}
+                    className="flex items-center gap-1 text-[10px] bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 px-2 py-1 rounded-md font-bold transition-colors disabled:opacity-50"
+                  >
+                    {isGeneratingPrompt ? (
+                      <span className="animate-pulse">Generating...</span>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3" />
+                        AI Magic
+                      </>
+                    )}
+                  </button>
+                </div>
                 <textarea required value={formData.systemInstruction} onChange={e => setFormData({...formData, systemInstruction: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 h-28 resize-none" placeholder="Kamu adalah asisten customer service yang membantu pelanggan mengatasi masalah..." />
               </div>
 
@@ -219,7 +282,9 @@ export default function AIEmployeesPage() {
 
               <div className="flex justify-end gap-3 pt-4 border-t border-neutral-800 mt-6">
                 <button type="button" onClick={() => setShowModal(false)} className="px-5 py-2.5 rounded-xl text-sm font-medium text-neutral-400 hover:text-white transition-colors">Batal</button>
-                <button type="submit" className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-lg shadow-indigo-500/20">Hire AI Employee</button>
+                <button type="submit" disabled={isSubmitting} className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-lg shadow-indigo-500/20">
+                  {isSubmitting ? 'Hiring...' : 'Hire AI Employee'}
+                </button>
               </div>
             </form>
           </div>
