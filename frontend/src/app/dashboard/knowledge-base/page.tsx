@@ -132,56 +132,61 @@ export default function KnowledgeBasePage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto h-full overflow-y-auto">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-8 h-full">
+      <div className="flex justify-between items-end mb-10">
         <div>
-          <h1 className="text-2xl font-bold text-white mb-2">Knowledge Base</h1>
-          <p className="text-sm text-neutral-400">
+          <h1 className="text-3xl font-bold tracking-tight text-white mb-2 flex items-center gap-3">
+            <Database className="w-8 h-8 text-indigo-500" />
+            Knowledge Base
+          </h1>
+          <p className="text-neutral-400">
             Latih AI Anda dengan mengunggah teks pedoman, FAQ, atau data produk.
           </p>
         </div>
         <button 
           onClick={() => setShowKBModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-indigo-500/20"
+          className="flex items-center gap-2 px-5 py-2.5 bg-white text-indigo-600 hover:bg-neutral-200 text-sm font-semibold rounded-xl transition-colors shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)]"
         >
           <Plus className="w-4 h-4" />
           Create New KB
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {kbs.map(kb => (
-          <div key={kb.id} className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 backdrop-blur-xl hover:border-neutral-700 transition-colors">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-white mb-1">{kb.name}</h3>
-                <p className="text-sm text-neutral-400">{kb.description}</p>
+          <div key={kb.id} className="relative group rounded-3xl bg-[#0F0F11]/60 backdrop-blur-xl border border-white/[0.05] p-6 hover:bg-[#151518]/80 transition-all duration-300 shadow-2xl overflow-hidden flex flex-col">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-[50px] -mr-10 -mt-10 pointer-events-none group-hover:bg-indigo-500/20 transition-all" />
+            
+            <div className="flex justify-between items-start mb-6 relative z-10">
+              <div className="pr-4">
+                <h3 className="text-xl font-bold text-white mb-1.5">{kb.name}</h3>
+                <p className="text-sm text-neutral-400 line-clamp-2">{kb.description}</p>
               </div>
-              <div className="p-3 bg-neutral-800 rounded-xl border border-neutral-700">
-                <Database className="w-5 h-5 text-indigo-400" />
+              <div className="p-3 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-2xl border border-white/[0.05] shadow-inner">
+                <Database className="w-6 h-6 text-indigo-400" />
               </div>
             </div>
             
-            <div className="flex items-center gap-4 py-4 border-y border-neutral-800/50 mb-4">
+            <div className="flex items-center gap-4 py-4 border-y border-white/[0.05] mb-6 relative z-10">
               <div className="flex-1">
-                <div className="text-xs text-neutral-500 font-semibold mb-1">DATA SOURCES</div>
-                <div className="text-xl font-bold text-white">{kb.sources?.length || 0}</div>
+                <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider mb-1">DATA SOURCES</div>
+                <div className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-neutral-500">{kb.sources?.length || 0}</div>
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-3 mt-auto relative z-10">
               <button 
                 onClick={() => { setActiveKB(kb.id); setShowUploadModal(true); }}
-                className="w-1/2 py-2.5 bg-neutral-800 hover:bg-indigo-600 text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-2 group"
+                className="flex-1 py-3 bg-white/[0.03] hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 border border-white/[0.05] hover:border-indigo-400 hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]"
               >
-                <FileText className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
+                <FileText className="w-4 h-4" />
                 Upload Teks
               </button>
               <button 
                 onClick={() => { setActiveKB(kb.id); setShowUrlModal(true); }}
-                className="w-1/2 py-2.5 bg-neutral-800 hover:bg-indigo-600 text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-2 group"
+                className="flex-1 py-3 bg-white/[0.03] hover:bg-purple-600 text-white text-xs font-semibold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 border border-white/[0.05] hover:border-purple-400 hover:shadow-[0_0_20px_rgba(147,51,234,0.4)]"
               >
-                <Link2 className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
+                <Link2 className="w-4 h-4" />
                 Scrape URL
               </button>
             </div>
@@ -189,18 +194,21 @@ export default function KnowledgeBasePage() {
         ))}
 
         {kbs.length === 0 && (
-          <div className="col-span-full py-16 flex flex-col items-center justify-center border border-dashed border-neutral-800 rounded-2xl bg-neutral-900/20">
-            <Database className="w-12 h-12 text-neutral-700 mb-4" />
-            <h3 className="text-lg font-medium text-neutral-300 mb-2">Belum ada Knowledge Base</h3>
-            <p className="text-sm text-neutral-500 mb-6 text-center max-w-md">
-              Buat Knowledge Base pertama Anda untuk melatih AI Employee agar dapat menjawab pertanyaan secara spesifik mengenai bisnis Anda.
+          <div className="col-span-full py-24 flex flex-col items-center justify-center border border-dashed border-white/[0.1] rounded-3xl bg-gradient-to-b from-[#0F0F11]/50 to-transparent relative overflow-hidden">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-500/10 rounded-full blur-[80px] pointer-events-none" />
+            <div className="p-6 bg-white/[0.02] rounded-full border border-white/[0.05] mb-6 relative z-10">
+              <Database className="w-10 h-10 text-neutral-400" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-3 relative z-10">Belum ada Knowledge Base</h3>
+            <p className="text-neutral-400 mb-8 text-center max-w-lg leading-relaxed relative z-10">
+              Buat wadah pengetahuan pertama Anda. AI Employee akan menggunakan data di sini untuk memahami bisnis Anda dan menjawab pertanyaan pelanggan dengan cerdas.
             </p>
             <button 
               onClick={() => setShowKBModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-indigo-500/20"
+              className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)] relative z-10"
             >
               <Plus className="w-4 h-4" />
-              Create Knowledge Base
+              Buat Knowledge Base
             </button>
           </div>
         )}
