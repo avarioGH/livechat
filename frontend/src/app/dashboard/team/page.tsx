@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Search, MoreHorizontal, Mail, Shield, User, Clock, CheckCircle2 } from "lucide-react";
 
 type TeamMember = {
@@ -13,51 +13,44 @@ type TeamMember = {
   avatar?: string;
 };
 
-const mockMembers: TeamMember[] = [
-  {
-    id: '1',
-    name: 'Admin User',
-    email: 'admin@acme.com',
-    role: 'Owner',
-    status: 'Active',
-    lastActive: 'Baru saja',
-    avatar: 'AD'
-  },
-  {
-    id: '2',
-    name: 'Sarah Wilson',
-    email: 'sarah.w@acme.com',
-    role: 'Admin',
-    status: 'Active',
-    lastActive: '2 jam lalu',
-    avatar: 'SW'
-  },
-  {
-    id: '3',
-    name: 'Michael Chen',
-    email: 'm.chen@acme.com',
-    role: 'Agent',
-    status: 'Active',
-    lastActive: '5 jam lalu',
-    avatar: 'MC'
-  },
-  {
-    id: '4',
-    name: 'Jessica Lee',
-    email: 'jessica@acme.com',
-    role: 'Agent',
-    status: 'Pending',
-    lastActive: 'Belum pernah login',
-  }
-];
-
 export default function TeamPage() {
-  const [members] = useState<TeamMember[]>(mockMembers);
+  const [members, setMembers] = useState<TeamMember[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTeam = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+      
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+        const res = await fetch(`${apiUrl}/api/team`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          setMembers(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch team members:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchTeam();
+  }, []);
 
   const filteredMembers = members.filter(m => 
-    m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    m.email.toLowerCase().includes(searchQuery.toLowerCase())
+    m.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    m.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
