@@ -91,7 +91,7 @@ router.post('/generate-prompt', authenticateJWT, async (req, res) => {
     // Import generateSystemPrompt dynamically or at top.
     // For now, let's import it inline to avoid circular dependencies if any,
     // or just import at the top. Let's assume it's imported at the top.
-    const { generateSystemPrompt } = await import('../services/aiService');
+    const { generateSystemPrompt } = await import('../services/aiService.js');
     
     const prompt = await generateSystemPrompt(name || 'AI', role || 'Assistant', style || 'Professional', provider, model);
     res.json({ prompt });
