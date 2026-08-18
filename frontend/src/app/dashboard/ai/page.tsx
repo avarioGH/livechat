@@ -45,15 +45,21 @@ export default function AIEmployeesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token) return;
+    if (!token) {
+      alert("Error: Sesi login tidak valid atau token tidak ditemukan. Harap login kembali.");
+      // For testing purposes, we'll assign a dummy token to allow the UI to proceed to the backend (where it will likely fail 401, but at least we see network activity)
+      // return;
+    }
     
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/ai/employees`, {
+      const activeToken = token || 'dummy-token'; // Fallback for testing
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const res = await fetch(`${apiUrl}/api/ai/employees`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${activeToken}`
         },
         body: JSON.stringify(formData)
       });
@@ -61,21 +67,33 @@ export default function AIEmployeesPage() {
       if (res.ok) {
         setShowModal(false);
         setFormData({ name: '', role: '', provider: 'OPENAI', model: 'gpt-4o-mini', systemInstruction: '', communicationStyle: 'Professional' });
-        fetchEmployees(token);
+        fetchEmployees(activeToken);
+        alert("AI Employee berhasil dibuat!");
       } else {
-        const errorData = await res.json();
-        alert(`Failed to create AI employee: ${errorData.error || 'Unknown error'}`);
+        // Safe json parsing in case backend returns HTML (e.g. 500 internal server error)
+        let errorMsg = 'Unknown error';
+        try {
+          const errorData = await res.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch (e) {
+          errorMsg = `Server error (${res.status})`;
+        }
+        alert(`Gagal membuat AI employee: ${errorMsg}`);
       }
     } catch (error) {
       console.error('Failed to create AI employee', error);
-      alert('Network error while creating AI employee.');
+      alert(`Network error: Pastikan backend (${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}) berjalan.`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleGeneratePrompt = async () => {
-    if (!token) return;
+    if (!token) {
+      alert("Error: Token otorisasi tidak ditemukan. Harap pastikan Anda sudah login.");
+      // proceed with dummy for testing
+    }
+    
     if (!formData.name || !formData.role) {
       alert("Silakan isi Nama AI dan Role terlebih dahulu untuk generate prompt.");
       return;
@@ -83,11 +101,13 @@ export default function AIEmployeesPage() {
     
     setIsGeneratingPrompt(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/ai/employees/generate-prompt`, {
+      const activeToken = token || 'dummy-token';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const res = await fetch(`${apiUrl}/api/ai/employees/generate-prompt`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${activeToken}`
         },
         body: JSON.stringify({
           name: formData.name,
@@ -101,11 +121,20 @@ export default function AIEmployeesPage() {
       if (res.ok) {
         const data = await res.json();
         setFormData({ ...formData, systemInstruction: data.prompt });
+        alert("Prompt berhasil dibuat secara otomatis!");
       } else {
-        alert("Gagal generate prompt.");
+        let errorMsg = 'Unknown error';
+        try {
+          const errorData = await res.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch (e) {
+          errorMsg = `Server error (${res.status})`;
+        }
+        alert(`Gagal generate prompt: ${errorMsg}`);
       }
     } catch (error) {
       console.error('Failed to generate prompt', error);
+      alert(`Network error: Pastikan backend (${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}) berjalan.`);
     } finally {
       setIsGeneratingPrompt(false);
     }
