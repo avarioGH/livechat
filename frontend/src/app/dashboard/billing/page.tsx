@@ -95,78 +95,7 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* Pricing Plans */}
-      <h3 className="text-xl font-semibold mb-6">Upgrade your plan</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* Pro Plan */}
-        <div className="bg-neutral-900/40 border border-neutral-800 hover:border-indigo-500/50 transition-colors rounded-2xl p-8 flex flex-col">
-          <h4 className="text-xl font-bold text-white mb-2">Pro Plan</h4>
-          <div className="flex items-end gap-1 mb-6">
-            <span className="text-4xl font-bold">$49</span>
-            <span className="text-neutral-500 mb-1">/month</span>
-          </div>
-          <ul className="space-y-3 mb-8 flex-1 text-sm text-neutral-300">
-            <li className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-              Up to 5,000 AI Chats / mo
-            </li>
-            <li className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-              GPT-4o & Gemini Flash Support
-            </li>
-            <li className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-              Knowledge Base Integration (RAG)
-            </li>
-          </ul>
-          <button 
-            onClick={() => handleCheckout('PRO')}
-            disabled={isLoading || currentPlan === 'PRO'}
-            className="w-full py-3 bg-indigo-500 hover:bg-indigo-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-semibold rounded-xl transition-colors"
-          >
-            {currentPlan === 'PRO' ? 'Current Plan' : 'Upgrade to Pro'}
-          </button>
-        </div>
 
-        {/* Enterprise Plan */}
-        <div className="bg-gradient-to-b from-indigo-900/30 to-neutral-900/40 border border-indigo-500/30 hover:border-indigo-400 transition-colors rounded-2xl p-8 flex flex-col relative overflow-hidden">
-          <div className="absolute top-0 right-0 bg-indigo-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-wider">
-            Most Popular
-          </div>
-          <h4 className="text-xl font-bold text-white mb-2">Enterprise Plan</h4>
-          <div className="flex items-end gap-1 mb-6">
-            <span className="text-4xl font-bold">$199</span>
-            <span className="text-neutral-500 mb-1">/month</span>
-          </div>
-          <ul className="space-y-3 mb-8 flex-1 text-sm text-neutral-300">
-            <li className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-              Unlimited AI Chats
-            </li>
-            <li className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-              Custom AI Persona Fine-Tuning
-            </li>
-            <li className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-              White-label Widget
-            </li>
-            <li className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-              24/7 Priority Support
-            </li>
-          </ul>
-          <button 
-            onClick={() => handleCheckout('ENTERPRISE')}
-            disabled={isLoading || currentPlan === 'ENTERPRISE'}
-            className="w-full py-3 bg-white text-indigo-600 hover:bg-neutral-200 disabled:bg-neutral-800 disabled:text-neutral-500 font-semibold rounded-xl transition-colors"
-          >
-            {currentPlan === 'ENTERPRISE' ? 'Current Plan' : 'Upgrade to Enterprise'}
-          </button>
-        </div>
-
-      </div>
 
       {isFetching && (
         <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10 backdrop-blur-sm rounded-2xl">
